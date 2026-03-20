@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EVのガソリン車燃費換算</title>
+    <style>
+        :root { --primary: #1a73e8; --bg: #f8f9fa; }
+        body { font-family: sans-serif; max-width: 500px; margin: 20px auto; padding: 20px; background: var(--bg); color: #333; }
+        .card { background: white; padding: 25px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); position: relative; }
+        h1 { font-size: 1.25rem; color: var(--primary); text-align: center; margin-bottom: 20px; }
+        
+        .help-btn { position: absolute; top: 20px; right: 20px; width: 28px; height: 28px; border-radius: 50%; border: 1px solid #ccc; background: white; cursor: pointer; color: #666; font-weight: bold; }
+        
+        .input-group { margin-bottom: 18px; }
+        label { display: block; font-size: 0.85rem; font-weight: bold; margin-bottom: 6px; color: #666; }
+        input { width: 100%; padding: 12px; box-sizing: border-box; border: 2px solid #eee; border-radius: 8px; font-size: 1.1rem; }
+        
+        .result { margin-top: 25px; padding: 20px; background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border-radius: 12px; text-align: center; }
+        .result-val { font-size: 2.4rem; font-weight: 800; color: var(--primary); }
+        .unit { font-size: 1.1rem; margin-left: 4px; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; }
+        .modal-content { background: white; margin: 15% auto; padding: 25px; width: 85%; max-width: 400px; border-radius: 12px; line-height: 1.6; }
+        .modal-content h2 { font-size: 1.1rem; margin-top: 0; border-bottom: 2px solid var(--primary); padding-bottom: 8px; }
+        .close-btn { display: block; width: 100%; padding: 10px; margin-top: 20px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; }
+        ul { padding-left: 20px; font-size: 0.9rem; }
+        li { margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <button class="help-btn" onclick="toggleHelp(true)">?</button>
+    <h1>[EVのガソリン車燃費換算]</h1>
+    
+    <div class="input-group">
+        <label>実電費 (km/kWh)</label>
+        <input type="number" id="evEfficiency" step="0.1" placeholder="6.0">
+    </div>
+
+    <div class="input-group">
+        <label>レギュラーガソリン価格 (円/L)</label>
+        <input type="number" id="gasPrice" placeholder="170">
+    </div>
+
+    <div class="input-group">
+        <label>充電電気代単価 (円/kWh)</label>
+        <input type="number" id="elecPrice" placeholder="14.59">
+    </div>
+
+    <div class="result">
+        <div style="font-size: 0.9rem;">ガソリン車換算 燃費</div>
+        <div class="result-val"><span id="equivalentFuel">69.9</span><span class="unit">km/L</span></div>
+    </div>
+</div>
+
+<div id="helpModal" class="modal">
+    <div class="modal-content">
+        <h2>使いかたとヒント</h2>
+        <ul>
+            <li><strong>電費:</strong> 1kWhで走れる距離。最新EVなら 5.0〜6.5程度が目安。</li>
+            <li><strong>ガソリン価格:</strong> 現在のレギュラーガソリン相場（170円前後）の直近単価を入力。</li>
+            <li><strong>電気代:</strong> 深夜電力を活用中なら 15〜28円程度に設定。</li>
+            <li><strong>計算式:</strong> (電費 × ガソリン単価) ÷ 電気代</li>
+        </ul>
+        <button class="close-btn" onclick="toggleHelp(false)">閉じる</button>
+    </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'ev_calc_settings_v2';
+const inputs = {
+    evEfficiency: document.getElementById('evEfficiency'),
+    gasPrice: document.getElementById('gasPrice'),
+    elecPrice: document.getElementById('elecPrice')
+};
+const resultDisplay = document.getElementById('equivalentFuel');
+
+function toggleHelp(show) {
+    document.getElementById('helpModal').style.display = show ? 'block' : 'none';
+}
+
+function loadSettings() {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    // デフォルト値: 電費6.0, ガソリン170, 電気代14.59
+    const data = saved ? JSON.parse(saved) : { evEfficiency: 6.0, gasPrice: 170, elecPrice: 14.59 };
+    Object.keys(inputs).forEach(key => inputs[key].value = data[key]);
+    calculate();
+}
+
+function calculate() {
+    const evEff = parseFloat(inputs.evEfficiency.value) || 0;
+    const gasP = parseFloat(inputs.gasPrice.value) || 0;
+    const elecP = parseFloat(inputs.elecPrice.value) || 0;
+    
+    if (evEff > 0 && gasP > 0 && elecP > 0) {
+        const res = (evEff * gasP) / elecP;
+        resultDisplay.innerText = res.toFixed(1);
+    } else {
+        resultDisplay.innerText = "--";
+    }
+}
+
+function saveAndCalc() {
+    const data = {
+        evEfficiency: parseFloat(inputs.evEfficiency.value) || 0,
+        gasPrice: parseFloat(inputs.gasPrice.value) || 0,
+        elecPrice: parseFloat(inputs.elecPrice.value) || 0
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    calculate();
+}
+
+Object.values(inputs).forEach(el => el.addEventListener('input', saveAndCalc));
+window.onload = loadSettings;
+window.onclick = (e) => { if(e.target.className === 'modal') toggleHelp(false); };
+</script>
+
+</body>
+</html>
