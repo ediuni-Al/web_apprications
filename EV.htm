@@ -13,8 +13,14 @@
         .help-btn { position: absolute; top: 20px; right: 20px; width: 28px; height: 28px; border-radius: 50%; border: 1px solid #ccc; background: white; cursor: pointer; color: #666; font-weight: bold; }
         
         .input-group { margin-bottom: 18px; }
+        .row { display: flex; gap: 10px; align-items: flex-end; }
+        .flex-1 { flex: 1; }
+        
         label { display: block; font-size: 0.85rem; font-weight: bold; margin-bottom: 6px; color: #666; }
         input { width: 100%; padding: 12px; box-sizing: border-box; border: 2px solid #eee; border-radius: 8px; font-size: 1.1rem; }
+        input:focus { border-color: var(--primary); outline: none; }
+        
+        .sync-label { font-size: 0.75rem; color: #1a73e8; margin-top: 4px; display: block; height: 1em; }
         
         .result { margin-top: 25px; padding: 20px; background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border-radius: 12px; text-align: center; }
         .result-val { font-size: 2.4rem; font-weight: 800; color: var(--primary); }
@@ -22,10 +28,7 @@
 
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; }
         .modal-content { background: white; margin: 15% auto; padding: 25px; width: 85%; max-width: 400px; border-radius: 12px; line-height: 1.6; }
-        .modal-content h2 { font-size: 1.1rem; margin-top: 0; border-bottom: 2px solid var(--primary); padding-bottom: 8px; }
         .close-btn { display: block; width: 100%; padding: 10px; margin-top: 20px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; }
-        ul { padding-left: 20px; font-size: 0.9rem; }
-        li { margin-bottom: 8px; }
     </style>
 </head>
 <body>
@@ -35,8 +38,17 @@
     <h1>[ EVのガソリン車燃費換算 ]</h1>
     
     <div class="input-group">
-        <label>実電費 (km/kWh)</label>
-        <input type="number" id="evEfficiency" step="0.1" placeholder="6.0">
+        <div class="row">
+            <div class="flex-1">
+                <label>電費 (km/kWh)</label>
+                <input type="number" id="kmPerKwh" step="0.1" placeholder="6.0">
+            </div>
+            <div class="flex-1">
+                <label>電費 (Wh/km)</label>
+                <input type="number" id="whPerKm" step="1" placeholder="167">
+            </div>
+        </div>
+        <span class="sync-label" id="syncMsg"></span>
     </div>
 
     <div class="input-group">
@@ -51,7 +63,7 @@
 
     <div class="result">
         <div style="font-size: 0.9rem;">ガソリン車換算での燃費</div>
-        <div class="result-val"><span id="equivalentFuel">69.9</span><span class="unit">km/L</span></div>
+        <div class="result-val"><span id="equivalentFuel">--</span><span class="unit">km/L</span></div>
     </div>
 </div>
 
@@ -59,60 +71,75 @@
     <div class="modal-content">
         <h2>使いかたとヒント</h2>
         <ul>
-            <li><strong>電費:</strong> 1kWhで走れる距離。最新EVなら 5.0〜6.5程度が目安。</li>
-            <li><strong>ガソリン価格:</strong> 現在のレギュラーガソリン相場（170円前後）の直近単価を入力。</li>
-            <li><strong>電気代:</strong> 深夜電力を活用中なら 15〜28円程度に設定。</li>
-            <li><strong>計算式:</strong> (電費 × ガソリン単価) ÷ 電気代</li>
+            <li><strong>km/kWh:</strong> 1kWhで何km走れるか。</li>
+            <li><strong>Wh/km:</strong> 1km走るのに何Wh必要か（逆数）。</li>
+            <li><strong>計算式:</strong> (km/kWh × ガソリン単価) ÷ 電気代</li>
         </ul>
         <button class="close-btn" onclick="toggleHelp(false)">閉じる</button>
     </div>
 </div>
 
 <script>
-const STORAGE_KEY = 'ev_calc_settings_v2';
-const inputs = {
-    evEfficiency: document.getElementById('evEfficiency'),
+const STORAGE_KEY = 'ev_calc_settings_v3';
+const el = {
+    kmPerKwh: document.getElementById('kmPerKwh'),
+    whPerKm: document.getElementById('whPerKm'),
     gasPrice: document.getElementById('gasPrice'),
-    elecPrice: document.getElementById('elecPrice')
+    elecPrice: document.getElementById('elecPrice'),
+    result: document.getElementById('equivalentFuel')
 };
-const resultDisplay = document.getElementById('equivalentFuel');
 
 function toggleHelp(show) {
     document.getElementById('helpModal').style.display = show ? 'block' : 'none';
 }
 
-function loadSettings() {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    // デフォルト値: 電費6.0, ガソリン170, 電気代14.59
-    const data = saved ? JSON.parse(saved) : { evEfficiency: 6.0, gasPrice: 170, elecPrice: 14.59 };
-    Object.keys(inputs).forEach(key => inputs[key].value = data[key]);
-    calculate();
-}
+function calculate(source) {
+    let kmKwh = parseFloat(el.kmPerKwh.value) || 0;
+    let whKm = parseFloat(el.whPerKm.value) || 0;
+    const gasP = parseFloat(el.gasPrice.value) || 0;
+    const elecP = parseFloat(el.elecPrice.value) || 0;
 
-function calculate() {
-    const evEff = parseFloat(inputs.evEfficiency.value) || 0;
-    const gasP = parseFloat(inputs.gasPrice.value) || 0;
-    const elecP = parseFloat(inputs.elecPrice.value) || 0;
-    
-    if (evEff > 0 && gasP > 0 && elecP > 0) {
-        const res = (evEff * gasP) / elecP;
-        resultDisplay.innerText = res.toFixed(1);
-    } else {
-        resultDisplay.innerText = "--";
+    // 相互換算のロジック
+    if (source === 'kmPerKwh' && kmKwh > 0) {
+        whKm = Math.round(1000 / kmKwh);
+        el.whPerKm.value = whKm;
+    } else if (source === 'whPerKm' && whKm > 0) {
+        kmKwh = parseFloat((1000 / whKm).toFixed(2));
+        el.kmPerKwh.value = kmKwh;
     }
+
+    // ガソリン燃費換算の計算
+    if (kmKwh > 0 && gasP > 0 && elecP > 0) {
+        const res = (kmKwh * gasP) / elecP;
+        el.result.innerText = res.toFixed(1);
+    } else {
+        el.result.innerText = "--";
+    }
+    saveSettings();
 }
 
-function saveAndCalc() {
+function saveSettings() {
     const data = {
-        evEfficiency: parseFloat(inputs.evEfficiency.value) || 0,
-        gasPrice: parseFloat(inputs.gasPrice.value) || 0,
-        elecPrice: parseFloat(inputs.elecPrice.value) || 0
+        kmPerKwh: el.kmPerKwh.value,
+        whPerKm: el.whPerKm.value,
+        gasPrice: el.gasPrice.value,
+        elecPrice: el.elecPrice.value
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function loadSettings() {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    const data = saved ? JSON.parse(saved) : { kmPerKwh: 6.0, whPerKm: 167, gasPrice: 150, elecPrice: 14.59 };
+    Object.keys(data).forEach(key => { if(el[key]) el[key].value = data[key]; });
     calculate();
 }
 
-Object.values(inputs).forEach(el => el.addEventListener('input', saveAndCalc));
+el.kmPerKwh.addEventListener('input', () => calculate('kmPerKwh'));
+el.whPerKm.addEventListener('input', () => calculate('whPerKm'));
+el.gasPrice.addEventListener('input', () => calculate());
+el.elecPrice.addEventListener('input', () => calculate());
+
 window.onload = loadSettings;
 window.onclick = (e) => { if(e.target.className === 'modal') toggleHelp(false); };
 </script>
