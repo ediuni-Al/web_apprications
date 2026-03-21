@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EV Efficiency Tracker</title>
+    <title>EV Efficiency Tracker ver1.0</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📈️</text></svg>">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { 
@@ -56,32 +57,32 @@
 </div>
 
 <div class="card">
-    <h1 id="t-title">[ EVのガソリン車燃費換算 ]</h1>
+    <h1 id="t-title">[ EVの電費管理 ]</h1>
     <div class="input-group">
         <div class="row">
             <div class="flex-1">
                 <label id="t-label-kwh">電費 (km/kWh)</label>
-                <input type="number" id="kmPerKwh" step="0.1" placeholder="例: 6.0">
+                <input type="number" id="kmPerKwh" step="0.1" inputmode="decimal" placeholder="例: 6.0">
             </div>
             <div class="flex-1">
                 <label id="t-label-wh">電費 (Wh/km)</label>
-                <input type="number" id="whPerKm" step="1" placeholder="例: 167">
+                <input type="number" id="whPerKm" step="1" inputmode="decimal" placeholder="例: 167">
             </div>
         </div>
     </div>
     <div class="row">
         <div class="input-group flex-1">
             <label id="t-label-gas">ガソリン価格 (¥/L)</label>
-            <input type="number" id="gasPrice" placeholder="例: 170">
+            <input type="number" id="gasPrice" inputmode="decimal" placeholder="例: 170">
         </div>
         <div class="input-group flex-1">
             <label id="t-label-elec">電気代 (¥/kWh)</label>
-            <input type="number" id="elecPrice" placeholder="例: 25.0">
+            <input type="number" id="elecPrice" inputmode="decimal" placeholder="例: 25.0">
         </div>
     </div>
 
     <div class="result">
-        <div id="t-result-label" style="font-size: 0.8rem;">ガソリン車換算での燃費</div>
+        <div id="t-result-label" style="font-size: 0.8rem;">ガソリン車換算での燃費換算</div>
         <div class="result-val"><span id="equivalentFuel">--</span><span class="unit">km/L</span></div>
         <div id="mileageResult" class="sub-result"></div>
     </div>
@@ -125,7 +126,7 @@
 const STORAGE_KEY = 'ev_calc_v12';
 const i18n = {
     ja: {
-        title: "[ EVのガソリン車燃費換算 ]", kwh: "電費 (km/kWh)", wh: "電費 (Wh/km)",
+        title: "[ EVの電費管理 ]", kwh: "電費 (km/kWh)", wh: "電費 (Wh/km)",
         gas: "ガソリン価格 (¥/L)", elec: "電気代 (¥/kWh)", res: "ガソリン車換算での燃費",
         save: "データを履歴に保存", chart: "電費推移グラフ (km/kWh)", hDate: "日付", hEff: "電費",
         close: "閉じる", helpT: "使い方", helpL: ["計算結果を保存してグラフで確認できます","機種変更時は下部の書き出し/インポートをご利用ください"], 
@@ -205,23 +206,37 @@ function updateUI() {
 function calculate(source) {
     let kmKwh = parseFloat(el.kmPerKwh.value);
     let whKm = parseFloat(el.whPerKm.value);
-    if (source === 'kmPerKwh' && !isNaN(kmKwh) && kmKwh > 0) { el.whPerKm.value = Math.round(1000 / kmKwh); } 
-    else if (source === 'whPerKm' && !isNaN(whKm) && whKm > 0) { kmKwh = parseFloat((1000 / whKm).toFixed(2)); el.kmPerKwh.value = kmKwh; }
+
+    // 双方向連動の精度を統一
+    if (source === 'kmPerKwh' && !isNaN(kmKwh) && kmKwh > 0) { 
+        el.whPerKm.value = Math.round(1000 / kmKwh); 
+    } 
+    else if (source === 'whPerKm' && !isNaN(whKm) && whKm > 0) { 
+        el.kmPerKwh.value = (1000 / whKm).toFixed(1); 
+    }
+
     const gasP = parseFloat(el.gasPrice.value);
     const elecP = parseFloat(el.elecPrice.value);
     const currentKmKwh = parseFloat(el.kmPerKwh.value);
-    if (!isNaN(currentKmKwh) && !isNaN(gasP) && !isNaN(elecP) && elecP > 0) {
+
+    if (currentKmKwh > 0 && gasP > 0 && elecP > 0) {
         const kmL = (currentKmKwh * gasP) / elecP;
         el.result.innerText = kmL.toFixed(1);
-        if (currentLang === 'en') { el.mileage.innerText = `≈ ${(kmL * 2.352).toFixed(1)} mpg`; el.mileage.style.display = 'block'; }
+        if (currentLang === 'en') { 
+            el.mileage.innerText = `≈ ${(kmL * 2.352).toFixed(1)} mpg`; 
+            el.mileage.style.display = 'block'; 
+        }
         else { el.mileage.style.display = 'none'; }
-    } else { el.result.innerText = "--"; el.mileage.style.display = 'none'; }
+    } else { 
+        el.result.innerText = "--"; 
+        el.mileage.style.display = 'none'; 
+    }
     saveToLocal();
 }
 
 function saveToHistory() {
     const rawEff = parseFloat(el.kmPerKwh.value);
-    if (isNaN(rawEff)) return;
+    if (isNaN(rawEff) || rawEff <= 0) return;
     historyData.push({ id: Date.now(), date: new Date().toLocaleDateString(), val: rawEff });
     renderHistory();
     saveToLocal();
@@ -251,7 +266,7 @@ function toggleShowAll() { showAll = !showAll; updateUI(); }
 function renderHistory() {
     const body = document.getElementById('historyBody');
     body.innerHTML = '';
-    const sortedData = [...historyData].reverse();
+    const sortedData = [...historyData].sort((a, b) => b.id - a.id);
     const displayData = showAll ? sortedData : sortedData.slice(0, 10);
     displayData.forEach(item => {
         const row = `<tr><td>${item.date}</td><td>${item.val} km/kWh</td><td><button class="del-btn" onclick="deleteHistory(${item.id})">×</button></td></tr>`;
@@ -266,7 +281,9 @@ function renderHistory() {
 }
 
 function exportData() {
-    const data = JSON.stringify({ storage: JSON.parse(localStorage.getItem(STORAGE_KEY)) }, null, 2);
+    const storageData = localStorage.getItem(STORAGE_KEY);
+    if (!storageData) return;
+    const data = JSON.stringify({ storage: JSON.parse(storageData) }, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -277,9 +294,10 @@ function exportData() {
 
 function importData(event) {
     const t = i18n[currentLang];
-    if (!confirm(t.importConfirm)) return;
     const file = event.target.files[0];
     if (!file) return;
+    if (!confirm(t.importConfirm)) { event.target.value = ""; return; }
+    
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
@@ -296,10 +314,12 @@ function importData(event) {
 }
 
 function toggleLang() { currentLang = currentLang === 'ja' ? 'en' : 'ja'; updateUI(); }
+
 function toggleTheme() {
-    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', theme);
-    document.getElementById('themeBtn').innerText = theme === 'dark' ? '☀️' : '🌙';
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    document.getElementById('themeBtn').innerText = newTheme === 'dark' ? '☀️' : '🌙';
     saveToLocal();
 }
 
@@ -320,14 +340,16 @@ function loadSettings() {
         el.elecPrice.value = saved.elecP || "";
         currentLang = saved.lang || 'ja';
         historyData = saved.history || [];
-        document.documentElement.setAttribute('data-theme', saved.theme || 'light');
-        document.getElementById('themeBtn').innerText = saved.theme === 'dark' ? '☀️' : '🌙';
+        const theme = saved.theme || 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+        document.getElementById('themeBtn').innerText = theme === 'dark' ? '☀️' : '🌙';
     }
     if (!chart) initChart();
     updateUI();
 }
 
 function toggleHelp(show) { document.getElementById('helpModal').style.display = show ? 'block' : 'none'; }
+
 Object.values(el).forEach(input => {
     if(input.nodeName === 'INPUT') input.addEventListener('input', (e) => calculate(e.target.id));
 });
