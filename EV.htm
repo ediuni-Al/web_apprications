@@ -40,11 +40,10 @@
         
         .show-more-area { text-align: center; margin-top: 15px; }
         .text-btn { background: none; border: none; color: var(--primary); cursor: pointer; font-size: 0.9rem; font-weight: bold; text-decoration: underline; margin: 5px; }
+        .text-btn.danger { color: #ff5252; }
 
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100; }
         .modal-content { background: var(--card-bg); margin: 15% auto; padding: 25px; width: 85%; max-width: 400px; border-radius: 12px; }
-        
-        /* インポート用の隠しinput */
         #importFile { display: none; }
     </style>
 </head>
@@ -105,9 +104,10 @@
         <div id="moreArea" style="display:none;">
             <button class="text-btn" id="t-more" onclick="toggleShowAll()">以前の履歴を表示</button>
         </div>
-        <div style="margin-top:10px; border-top: 1px solid var(--input-border); padding-top:10px;">
+        <div style="margin-top:10px; border-top: 1px solid var(--input-border); padding-top:10px; display: flex; flex-wrap: wrap; justify-content: center; gap: 5px;">
             <button class="text-btn" id="t-export" onclick="exportData()">データを書き出す</button>
             <button class="text-btn" id="t-import" onclick="document.getElementById('importFile').click()">インポート</button>
+            <button class="text-btn danger" id="t-clear" onclick="clearAllData()">全消去</button>
             <input type="file" id="importFile" accept=".json" onchange="importData(event)">
         </div>
     </div>
@@ -122,7 +122,7 @@
 </div>
 
 <script>
-const STORAGE_KEY = 'ev_calc_v11';
+const STORAGE_KEY = 'ev_calc_v12';
 const i18n = {
     ja: {
         title: "[ EVのガソリン車燃費換算 ]", kwh: "電費 (km/kWh)", wh: "電費 (Wh/km)",
@@ -130,7 +130,12 @@ const i18n = {
         save: "データを履歴に保存", chart: "電費推移グラフ (km/kWh)", hDate: "日付", hEff: "電費",
         close: "閉じる", helpT: "使い方", helpL: ["計算結果を保存してグラフで確認できます","機種変更時は下部の書き出し/インポートをご利用ください"], 
         ph: "例: ", more: "以前の履歴を表示", less: "履歴をたたむ",
-        export: "データを保存(JSON)", import: "データを復元", importConfirm: "現在のデータが上書きされます。よろしいですか？"
+        export: "データを書き出す", import: "インポート", clear: "全消去",
+        importConfirm: "現在の設定と履歴がすべて上書きされます。よろしいですか？",
+        importSuccess: "データをインポートしました。",
+        importError: "ファイル形式が正しくありません。",
+        clearConfirm: "保存された履歴と設定をすべて消去します。よろしいですか？",
+        clearSuccess: "すべてのデータを消去しました。"
     },
     en: {
         title: "[ EV to Gas MPG Equivalent ]", kwh: "Eff (km/kWh)", wh: "Eff (Wh/km)",
@@ -138,7 +143,12 @@ const i18n = {
         save: "Save to History", chart: "EV Efficiency Trend (km/kWh)", hDate: "Date", hEff: "Efficiency",
         close: "Close", helpT: "Usage", helpL: ["Save results to track trends","Use Export/Import for device migration"], 
         ph: "e.g. ", more: "Show older history", less: "Show less",
-        export: "Export Data (JSON)", import: "Import Data", importConfirm: "Current data will be overwritten. Continue?"
+        export: "Export", import: "Import", clear: "Clear All",
+        importConfirm: "Current settings and history will be overwritten. Continue?",
+        importSuccess: "Data imported successfully.",
+        importError: "Invalid file format.",
+        clearConfirm: "All history and settings will be deleted. Are you sure?",
+        clearSuccess: "All data cleared."
     }
 };
 
@@ -179,6 +189,7 @@ function updateUI() {
     document.getElementById('t-more').innerText = showAll ? t.less : t.more;
     document.getElementById('t-export').innerText = t.export;
     document.getElementById('t-import').innerText = t.import;
+    document.getElementById('t-clear').innerText = t.clear;
     document.getElementById('langBtn').innerText = currentLang === 'ja' ? 'EN' : 'JP';
     document.getElementById('t-help-list').innerHTML = t.helpL.map(txt => `<li>${txt}</li>`).join('');
     
@@ -222,6 +233,19 @@ function deleteHistory(id) {
     saveToLocal();
 }
 
+function clearAllData() {
+    if (!confirm(i18n[currentLang].clearConfirm)) return;
+    localStorage.removeItem(STORAGE_KEY);
+    historyData = [];
+    el.kmPerKwh.value = "";
+    el.whPerKm.value = "";
+    el.gasPrice.value = "";
+    el.elecPrice.value = "";
+    renderHistory();
+    calculate();
+    alert(i18n[currentLang].clearSuccess);
+}
+
 function toggleShowAll() { showAll = !showAll; updateUI(); }
 
 function renderHistory() {
@@ -241,20 +265,19 @@ function renderHistory() {
     }
 }
 
-// データエクスポート機能
 function exportData() {
     const data = JSON.stringify({ storage: JSON.parse(localStorage.getItem(STORAGE_KEY)) }, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ev_data_${new Date().toISOString().slice(0,10)}.json`;
+    a.download = `ev_efficiency_data_${new Date().toISOString().slice(0,10)}.json`;
     a.click();
 }
 
-// データインポート機能
 function importData(event) {
-    if (!confirm(i18n[currentLang].importConfirm)) return;
+    const t = i18n[currentLang];
+    if (!confirm(t.importConfirm)) return;
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
@@ -264,11 +287,12 @@ function importData(event) {
             if (imported.storage) {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(imported.storage));
                 loadSettings();
-                alert("Import Successful");
-            }
-        } catch (err) { alert("Invalid File Format"); }
+                alert(t.importSuccess);
+            } else { throw new Error(); }
+        } catch (err) { alert(t.importError); }
     };
     reader.readAsText(file);
+    event.target.value = ""; 
 }
 
 function toggleLang() { currentLang = currentLang === 'ja' ? 'en' : 'ja'; updateUI(); }
