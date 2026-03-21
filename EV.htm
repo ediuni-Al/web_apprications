@@ -3,146 +3,283 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EVのガソリン車燃費換算</title>
+    <title>EV Efficiency Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --primary: #1a73e8; --bg: #f8f9fa; }
-        body { font-family: sans-serif; max-width: 500px; margin: 20px auto; padding: 20px; background: var(--bg); color: #333; }
-        .card { background: white; padding: 25px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); position: relative; }
-        h1 { font-size: 1.25rem; color: var(--primary); text-align: center; margin-bottom: 20px; }
-        
-        .help-btn { position: absolute; top: 20px; right: 20px; width: 28px; height: 28px; border-radius: 50%; border: 1px solid #ccc; background: white; cursor: pointer; color: #666; font-weight: bold; }
-        
+        :root { 
+            --primary: #1a73e8; --bg: #f8f9fa; --card-bg: #ffffff;
+            --text: #333333; --text-sub: #666666; --input-border: #eeeeee;
+            --result-bg: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        }
+        [data-theme="dark"] {
+            --bg: #121212; --card-bg: #1e1e1e; --text: #e0e0e0;
+            --text-sub: #aaaaaa; --input-border: #333333;
+            --result-bg: linear-gradient(135deg, #0d47a1 0%, #1565c0 100%);
+        }
+        body { font-family: sans-serif; max-width: 550px; margin: 0 auto; padding: 20px; background: var(--bg); color: var(--text); transition: 0.3s; }
+        .header-controls { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 15px; }
+        .icon-btn { background: var(--card-bg); border: 1px solid var(--input-border); border-radius: 8px; padding: 8px 12px; cursor: pointer; color: var(--text); font-size: 0.9rem; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+        .card { background: var(--card-bg); padding: 25px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h1 { font-size: 1.2rem; color: var(--primary); text-align: center; margin-bottom: 25px; margin-top: 0; }
         .input-group { margin-bottom: 18px; }
         .row { display: flex; gap: 10px; align-items: flex-end; }
         .flex-1 { flex: 1; }
-        
-        label { display: block; font-size: 0.85rem; font-weight: bold; margin-bottom: 6px; color: #666; }
-        input { width: 100%; padding: 12px; box-sizing: border-box; border: 2px solid #eee; border-radius: 8px; font-size: 1.1rem; }
-        input:focus { border-color: var(--primary); outline: none; }
-        
-        .sync-label { font-size: 0.75rem; color: #1a73e8; margin-top: 4px; display: block; height: 1em; }
-        
-        .result { margin-top: 25px; padding: 20px; background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border-radius: 12px; text-align: center; }
+        label { display: block; font-size: 0.8rem; font-weight: bold; margin-bottom: 6px; color: var(--text-sub); }
+        input { width: 100%; padding: 12px; box-sizing: border-box; border: 2px solid var(--input-border); border-radius: 8px; font-size: 1.1rem; background: var(--card-bg); color: var(--text); }
+        .result { margin-top: 25px; padding: 20px; background: var(--result-bg); border-radius: 12px; text-align: center; color: #000; position: relative; }
+        [data-theme="dark"] .result { color: #fff; }
         .result-val { font-size: 2.4rem; font-weight: 800; color: var(--primary); }
-        .unit { font-size: 1.1rem; margin-left: 4px; }
+        [data-theme="dark"] .result-val { color: #90caf9; }
+        .sub-result { font-size: 1rem; margin-top: 5px; opacity: 0.8; font-weight: bold; }
+        .save-btn { width: 100%; padding: 12px; margin-top: 15px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        
+        .chart-container { margin-top: 20px; height: 220px; }
+        .history-table { width: 100%; margin-top: 10px; border-collapse: collapse; font-size: 0.85rem; }
+        .history-table th, .history-table td { padding: 10px; border-bottom: 1px solid var(--input-border); text-align: center; }
+        .del-btn { color: #ff5252; cursor: pointer; background: none; border: none; font-size: 1.2rem; }
+        
+        /* もっと見るボタンのスタイル */
+        .show-more-area { text-align: center; margin-top: 15px; }
+        .text-btn { background: none; border: none; color: var(--primary); cursor: pointer; font-size: 0.9rem; font-weight: bold; text-decoration: underline; }
 
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; }
-        .modal-content { background: white; margin: 15% auto; padding: 25px; width: 85%; max-width: 400px; border-radius: 12px; line-height: 1.6; }
-        .close-btn { display: block; width: 100%; padding: 10px; margin-top: 20px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100; }
+        .modal-content { background: var(--card-bg); margin: 15% auto; padding: 25px; width: 85%; max-width: 400px; border-radius: 12px; }
     </style>
 </head>
 <body>
 
+<div class="header-controls">
+    <button class="icon-btn" onclick="toggleHelp(true)">?</button>
+    <button class="icon-btn" onclick="toggleLang()" id="langBtn">EN</button>
+    <button class="icon-btn" onclick="toggleTheme()" id="themeBtn">🌙</button>
+</div>
+
 <div class="card">
-    <button class="help-btn" onclick="toggleHelp(true)">?</button>
-    <h1>[ EVのガソリン車燃費換算 ]</h1>
-    
+    <h1 id="t-title">[ EVのガソリン車燃費換算 ]</h1>
     <div class="input-group">
         <div class="row">
             <div class="flex-1">
-                <label>電費 (km/kWh)</label>
-                <input type="number" id="kmPerKwh" step="0.1" placeholder="6.0">
+                <label id="t-label-kwh">電費 (km/kWh)</label>
+                <input type="number" id="kmPerKwh" step="0.1" placeholder="例: 6.0">
             </div>
             <div class="flex-1">
-                <label>電費 (Wh/km)</label>
-                <input type="number" id="whPerKm" step="1" placeholder="167">
+                <label id="t-label-wh">電費 (Wh/km)</label>
+                <input type="number" id="whPerKm" step="1" placeholder="例: 167">
             </div>
         </div>
-        <span class="sync-label" id="syncMsg"></span>
     </div>
-
-    <div class="input-group">
-        <label>レギュラーガソリン価格 (円/L)</label>
-        <input type="number" id="gasPrice" placeholder="170">
-    </div>
-
-    <div class="input-group">
-        <label>充電電気代単価 (円/kWh)</label>
-        <input type="number" id="elecPrice" placeholder="14.59">
+    <div class="row">
+        <div class="input-group flex-1">
+            <label id="t-label-gas">ガソリン価格 (¥/L)</label>
+            <input type="number" id="gasPrice" placeholder="例: 170">
+        </div>
+        <div class="input-group flex-1">
+            <label id="t-label-elec">電気代 (¥/kWh)</label>
+            <input type="number" id="elecPrice" placeholder="例: 25.0">
+        </div>
     </div>
 
     <div class="result">
-        <div style="font-size: 0.9rem;">ガソリン車換算での燃費</div>
+        <div id="t-result-label" style="font-size: 0.8rem;">ガソリン車換算での燃費</div>
         <div class="result-val"><span id="equivalentFuel">--</span><span class="unit">km/L</span></div>
+        <div id="mileageResult" class="sub-result"></div>
+    </div>
+    <button class="save-btn" onclick="saveToHistory()" id="t-save">データを履歴に保存</button>
+</div>
+
+<div class="card">
+    <h2 id="t-chart-title" style="font-size: 1rem; margin-top:0;">電費推移グラフ (km/kWh)</h2>
+    <div class="chart-container">
+        <canvas id="efficiencyChart"></canvas>
+    </div>
+    <table class="history-table">
+        <thead>
+            <tr><th id="t-h-date">日付</th><th id="t-h-eff">電費</th><th></th></tr>
+        </thead>
+        <tbody id="historyBody"></tbody>
+    </table>
+    <div class="show-more-area" id="moreArea" style="display:none;">
+        <button class="text-btn" id="t-more" onclick="toggleShowAll()">以前の履歴を表示</button>
     </div>
 </div>
 
 <div id="helpModal" class="modal">
     <div class="modal-content">
-        <h2>使いかたとヒント</h2>
-        <ul>
-            <li><strong>km/kWh:</strong> 1kWhで何km走れるか。</li>
-            <li><strong>Wh/km:</strong> 1km走るのに何Wh必要か（逆数）。</li>
-            <li><strong>計算式:</strong> (km/kWh × ガソリン単価) ÷ 電気代</li>
-        </ul>
-        <button class="close-btn" onclick="toggleHelp(false)">閉じる</button>
+        <h2 id="t-help-title">使い方</h2>
+        <ul id="t-help-list"></ul>
+        <button class="icon-btn" style="width:100%" onclick="toggleHelp(false)" id="t-close">閉じる</button>
     </div>
 </div>
 
 <script>
-const STORAGE_KEY = 'ev_calc_settings_v3';
-const el = {
-    kmPerKwh: document.getElementById('kmPerKwh'),
-    whPerKm: document.getElementById('whPerKm'),
-    gasPrice: document.getElementById('gasPrice'),
-    elecPrice: document.getElementById('elecPrice'),
-    result: document.getElementById('equivalentFuel')
+const STORAGE_KEY = 'ev_calc_v10';
+const i18n = {
+    ja: {
+        title: "[ EVのガソリン車燃費換算 ]", kwh: "電費 (km/kWh)", wh: "電費 (Wh/km)",
+        gas: "ガソリン価格 (¥/L)", elec: "電気代 (¥/kWh)", res: "ガソリン車換算での燃費",
+        save: "データを履歴に保存", chart: "電費推移グラフ (km/kWh)", hDate: "日付", hEff: "電費",
+        close: "閉じる", helpT: "使い方", helpL: ["グラフは電費推移を表示します","直近10件以上の履歴はボタンで表示できます"], 
+        ph: "例: ", more: "以前の履歴を表示", less: "履歴をたたむ"
+    },
+    en: {
+        title: "[ EV to Gas MPG Equivalent ]", kwh: "Eff (km/kWh)", wh: "Eff (Wh/km)",
+        gas: "Gas (¥/L)", elec: "Elec (¥/kWh)", res: "Equivalent Economy",
+        save: "Save to History", chart: "EV Efficiency Trend (km/kWh)", hDate: "Date", hEff: "Efficiency",
+        close: "Close", helpT: "Usage", helpL: ["Graph shows pure EV efficiency","View older entries with the button below"], 
+        ph: "e.g. ", more: "Show older history", less: "Show less"
+    }
 };
 
-function toggleHelp(show) {
-    document.getElementById('helpModal').style.display = show ? 'block' : 'none';
+let currentLang = 'ja';
+let historyData = [];
+let chart;
+let showAll = false;
+
+const el = {
+    kmPerKwh: document.getElementById('kmPerKwh'), whPerKm: document.getElementById('whPerKm'),
+    gasPrice: document.getElementById('gasPrice'), elecPrice: document.getElementById('elecPrice'),
+    result: document.getElementById('equivalentFuel'), mileage: document.getElementById('mileageResult')
+};
+
+function initChart() {
+    const ctx = document.getElementById('efficiencyChart').getContext('2d');
+    chart = new Chart(ctx, {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'km/kWh', data: [], borderColor: '#34a853', tension: 0.3, fill: true, backgroundColor: 'rgba(52, 168, 83, 0.1)' }] },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: false } } }
+    });
+}
+
+function updateUI() {
+    const t = i18n[currentLang];
+    document.getElementById('t-title').innerText = t.title;
+    document.getElementById('t-label-kwh').innerText = t.kwh;
+    document.getElementById('t-label-wh').innerText = t.wh;
+    document.getElementById('t-label-gas').innerText = t.gas;
+    document.getElementById('t-label-elec').innerText = t.elec;
+    document.getElementById('t-result-label').innerText = t.res;
+    document.getElementById('t-save').innerText = t.save;
+    document.getElementById('t-chart-title').innerText = t.chart;
+    document.getElementById('t-h-date').innerText = t.hDate;
+    document.getElementById('t-h-eff').innerText = t.hEff;
+    document.getElementById('t-close').innerText = t.close;
+    document.getElementById('t-help-title').innerText = t.helpT;
+    document.getElementById('langBtn').innerText = currentLang === 'ja' ? 'EN' : 'JP';
+    document.getElementById('t-help-list').innerHTML = t.helpL.map(txt => `<li>${txt}</li>`).join('');
+    document.getElementById('t-more').innerText = showAll ? t.less : t.more;
+    
+    el.kmPerKwh.placeholder = t.ph + "6.0";
+    el.whPerKm.placeholder = t.ph + "167";
+    el.gasPrice.placeholder = t.ph + "170";
+    el.elecPrice.placeholder = t.ph + "25.0";
+
+    calculate();
+    renderHistory();
 }
 
 function calculate(source) {
-    let kmKwh = parseFloat(el.kmPerKwh.value) || 0;
-    let whKm = parseFloat(el.whPerKm.value) || 0;
-    const gasP = parseFloat(el.gasPrice.value) || 0;
-    const elecP = parseFloat(el.elecPrice.value) || 0;
+    let kmKwh = parseFloat(el.kmPerKwh.value);
+    let whKm = parseFloat(el.whPerKm.value);
 
-    // 相互換算のロジック
-    if (source === 'kmPerKwh' && kmKwh > 0) {
-        whKm = Math.round(1000 / kmKwh);
-        el.whPerKm.value = whKm;
-    } else if (source === 'whPerKm' && whKm > 0) {
-        kmKwh = parseFloat((1000 / whKm).toFixed(2));
-        el.kmPerKwh.value = kmKwh;
-    }
+    if (source === 'kmPerKwh' && !isNaN(kmKwh) && kmKwh > 0) { el.whPerKm.value = Math.round(1000 / kmKwh); } 
+    else if (source === 'whPerKm' && !isNaN(whKm) && whKm > 0) { kmKwh = parseFloat((1000 / whKm).toFixed(2)); el.kmPerKwh.value = kmKwh; }
 
-    // ガソリン燃費換算の計算
-    if (kmKwh > 0 && gasP > 0 && elecP > 0) {
-        const res = (kmKwh * gasP) / elecP;
-        el.result.innerText = res.toFixed(1);
-    } else {
-        el.result.innerText = "--";
-    }
-    saveSettings();
+    const gasP = parseFloat(el.gasPrice.value);
+    const elecP = parseFloat(el.elecPrice.value);
+    const currentKmKwh = parseFloat(el.kmPerKwh.value);
+
+    if (!isNaN(currentKmKwh) && !isNaN(gasP) && !isNaN(elecP) && elecP > 0) {
+        const kmL = (currentKmKwh * gasP) / elecP;
+        el.result.innerText = kmL.toFixed(1);
+        if (currentLang === 'en') { el.mileage.innerText = `≈ ${(kmL * 2.352).toFixed(1)} mpg`; el.mileage.style.display = 'block'; }
+        else { el.mileage.style.display = 'none'; }
+    } else { el.result.innerText = "--"; el.mileage.style.display = 'none'; }
+    saveToLocal();
 }
 
-function saveSettings() {
+function saveToHistory() {
+    const rawEff = parseFloat(el.kmPerKwh.value);
+    if (isNaN(rawEff)) return;
+    const entry = { id: Date.now(), date: new Date().toLocaleDateString(), val: rawEff };
+    historyData.push(entry);
+    // グラフ用には全件保持するが、表示は制御する
+    renderHistory();
+    saveToLocal();
+}
+
+function deleteHistory(id) {
+    historyData = historyData.filter(item => item.id !== id);
+    renderHistory();
+    saveToLocal();
+}
+
+function toggleShowAll() {
+    showAll = !showAll;
+    updateUI();
+}
+
+function renderHistory() {
+    const body = document.getElementById('historyBody');
+    body.innerHTML = '';
+    
+    // 表示用データの抽出（日付が新しい順）
+    const sortedData = [...historyData].reverse();
+    const displayData = showAll ? sortedData : sortedData.slice(0, 10);
+    
+    displayData.forEach(item => {
+        const row = `<tr><td>${item.date}</td><td>${item.val} km/kWh</td><td><button class="del-btn" onclick="deleteHistory(${item.id})">×</button></td></tr>`;
+        body.insertAdjacentHTML('beforeend', row);
+    });
+
+    // 「以前の履歴を表示」ボタンの制御
+    const moreArea = document.getElementById('moreArea');
+    moreArea.style.display = historyData.length > 10 ? 'block' : 'none';
+
+    // グラフ描画（グラフは常に全件使用）
+    if (chart) {
+        chart.data.labels = historyData.map(d => d.date);
+        chart.data.datasets[0].data = historyData.map(d => d.val);
+        chart.update();
+    }
+}
+
+function toggleLang() { currentLang = currentLang === 'ja' ? 'en' : 'ja'; updateUI(); }
+function toggleTheme() {
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    document.getElementById('themeBtn').innerText = theme === 'dark' ? '☀️' : '🌙';
+    saveToLocal();
+}
+
+function saveToLocal() {
     const data = {
-        kmPerKwh: el.kmPerKwh.value,
-        whPerKm: el.whPerKm.value,
-        gasPrice: el.gasPrice.value,
-        elecPrice: el.elecPrice.value
+        kmKwh: el.kmPerKwh.value, whKm: el.whPerKm.value, gasP: el.gasPrice.value, elecP: el.elecPrice.value,
+        lang: currentLang, theme: document.documentElement.getAttribute('data-theme'), history: historyData
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
 function loadSettings() {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    const data = saved ? JSON.parse(saved) : { kmPerKwh: 6.0, whPerKm: 167, gasPrice: 150, elecPrice: 14.59 };
-    Object.keys(data).forEach(key => { if(el[key]) el[key].value = data[key]; });
-    calculate();
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (saved) {
+        el.kmPerKwh.value = saved.kmKwh || "";
+        el.whPerKm.value = saved.whKm || "";
+        el.gasPrice.value = saved.gasP || "";
+        el.elecPrice.value = saved.elecP || "";
+        currentLang = saved.lang || 'ja';
+        historyData = saved.history || [];
+        document.documentElement.setAttribute('data-theme', saved.theme || 'light');
+        document.getElementById('themeBtn').innerText = saved.theme === 'dark' ? '☀️' : '🌙';
+    }
+    initChart();
+    updateUI();
 }
 
-el.kmPerKwh.addEventListener('input', () => calculate('kmPerKwh'));
-el.whPerKm.addEventListener('input', () => calculate('whPerKm'));
-el.gasPrice.addEventListener('input', () => calculate());
-el.elecPrice.addEventListener('input', () => calculate());
-
+function toggleHelp(show) { document.getElementById('helpModal').style.display = show ? 'block' : 'none'; }
+Object.values(el).forEach(input => {
+    if(input.nodeName === 'INPUT') input.addEventListener('input', (e) => calculate(e.target.id));
+});
 window.onload = loadSettings;
-window.onclick = (e) => { if(e.target.className === 'modal') toggleHelp(false); };
 </script>
-
 </body>
 </html>
