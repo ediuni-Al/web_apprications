@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EV Efficiency Tracker ver1.0</title>
+    <title>EV Efficiency Tracker ver1.1</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📈️</text></svg>">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -31,6 +31,8 @@
         [data-theme="dark"] .result { color: #fff; }
         .result-val { font-size: 2.4rem; font-weight: 800; color: var(--primary); }
         [data-theme="dark"] .result-val { color: #90caf9; }
+        .cost-val { font-size: 1.2rem; margin-top: 8px; font-weight: bold; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 8px; }
+        [data-theme="dark"] .cost-val { border-top-color: rgba(255,255,255,0.1); }
         .sub-result { font-size: 1rem; margin-top: 5px; opacity: 0.8; font-weight: bold; }
         .save-btn { width: 100%; padding: 12px; margin-top: 15px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
         
@@ -84,6 +86,7 @@
     <div class="result">
         <div id="t-result-label" style="font-size: 0.8rem;">ガソリン車換算での燃費換算</div>
         <div class="result-val"><span id="equivalentFuel">--</span><span class="unit">km/L</span></div>
+        <div id="costPerKm" class="cost-val">-- <span style="font-size:0.9rem">円/km</span></div>
         <div id="mileageResult" class="sub-result"></div>
     </div>
     <button class="save-btn" onclick="saveToHistory()" id="t-save">データを履歴に保存</button>
@@ -136,7 +139,8 @@ const i18n = {
         importSuccess: "データをインポートしました。",
         importError: "ファイル形式が正しくありません。",
         clearConfirm: "保存された履歴と設定をすべて消去します。よろしいですか？",
-        clearSuccess: "すべてのデータを消去しました。"
+        clearSuccess: "すべてのデータを消去しました。",
+        unitCost: "円/km"
     },
     en: {
         title: "[ EV to Gas MPG Equivalent ]", kwh: "Eff (km/kWh)", wh: "Eff (Wh/km)",
@@ -149,7 +153,8 @@ const i18n = {
         importSuccess: "Data imported successfully.",
         importError: "Invalid file format.",
         clearConfirm: "All history and settings will be deleted. Are you sure?",
-        clearSuccess: "All data cleared."
+        clearSuccess: "All data cleared.",
+        unitCost: "¥/km"
     }
 };
 
@@ -161,7 +166,9 @@ let showAll = false;
 const el = {
     kmPerKwh: document.getElementById('kmPerKwh'), whPerKm: document.getElementById('whPerKm'),
     gasPrice: document.getElementById('gasPrice'), elecPrice: document.getElementById('elecPrice'),
-    result: document.getElementById('equivalentFuel'), mileage: document.getElementById('mileageResult')
+    result: document.getElementById('equivalentFuel'), 
+    cost: document.getElementById('costPerKm'),
+    mileage: document.getElementById('mileageResult')
 };
 
 function initChart() {
@@ -207,7 +214,6 @@ function calculate(source) {
     let kmKwh = parseFloat(el.kmPerKwh.value);
     let whKm = parseFloat(el.whPerKm.value);
 
-    // 双方向連動の精度を統一
     if (source === 'kmPerKwh' && !isNaN(kmKwh) && kmKwh > 0) { 
         el.whPerKm.value = Math.round(1000 / kmKwh); 
     } 
@@ -219,16 +225,26 @@ function calculate(source) {
     const elecP = parseFloat(el.elecPrice.value);
     const currentKmKwh = parseFloat(el.kmPerKwh.value);
 
-    if (currentKmKwh > 0 && gasP > 0 && elecP > 0) {
-        const kmL = (currentKmKwh * gasP) / elecP;
-        el.result.innerText = kmL.toFixed(1);
-        if (currentLang === 'en') { 
-            el.mileage.innerText = `≈ ${(kmL * 2.352).toFixed(1)} mpg`; 
-            el.mileage.style.display = 'block'; 
+    if (currentKmKwh > 0 && elecP > 0) {
+        // ¥/km の計算
+        const costVal = elecP / currentKmKwh;
+        el.cost.innerHTML = `${costVal.toFixed(1)} <span style="font-size:0.9rem">${i18n[currentLang].unitCost}</span>`;
+
+        // 換算燃費の計算
+        if (gasP > 0) {
+            const kmL = (currentKmKwh * gasP) / elecP;
+            el.result.innerText = kmL.toFixed(1);
+            if (currentLang === 'en') { 
+                el.mileage.innerText = `≈ ${(kmL * 2.352).toFixed(1)} mpg`; 
+                el.mileage.style.display = 'block'; 
+            }
+            else { el.mileage.style.display = 'none'; }
+        } else {
+            el.result.innerText = "--";
         }
-        else { el.mileage.style.display = 'none'; }
     } else { 
         el.result.innerText = "--"; 
+        el.cost.innerText = "-- " + i18n[currentLang].unitCost;
         el.mileage.style.display = 'none'; 
     }
     saveToLocal();
@@ -288,7 +304,9 @@ function exportData() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ev_efficiency_data_${new Date().toISOString().slice(0,10)}.json`;
+    // ファイル名を EV_data_日付 に変更
+    const dateStr = new Date().toISOString().slice(0,10);
+    a.download = `EV_data_${dateStr}.json`;
     a.click();
 }
 
@@ -351,7 +369,7 @@ function loadSettings() {
 function toggleHelp(show) { document.getElementById('helpModal').style.display = show ? 'block' : 'none'; }
 
 Object.values(el).forEach(input => {
-    if(input.nodeName === 'INPUT') input.addEventListener('input', (e) => calculate(e.target.id));
+    if(input && input.nodeName === 'INPUT') input.addEventListener('input', (e) => calculate(e.target.id));
 });
 window.onload = loadSettings;
 </script>
