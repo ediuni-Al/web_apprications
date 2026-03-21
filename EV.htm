@@ -38,12 +38,14 @@
         .history-table th, .history-table td { padding: 10px; border-bottom: 1px solid var(--input-border); text-align: center; }
         .del-btn { color: #ff5252; cursor: pointer; background: none; border: none; font-size: 1.2rem; }
         
-        /* もっと見るボタンのスタイル */
         .show-more-area { text-align: center; margin-top: 15px; }
-        .text-btn { background: none; border: none; color: var(--primary); cursor: pointer; font-size: 0.9rem; font-weight: bold; text-decoration: underline; }
+        .text-btn { background: none; border: none; color: var(--primary); cursor: pointer; font-size: 0.9rem; font-weight: bold; text-decoration: underline; margin: 5px; }
 
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100; }
         .modal-content { background: var(--card-bg); margin: 15% auto; padding: 25px; width: 85%; max-width: 400px; border-radius: 12px; }
+        
+        /* インポート用の隠しinput */
+        #importFile { display: none; }
     </style>
 </head>
 <body>
@@ -98,8 +100,16 @@
         </thead>
         <tbody id="historyBody"></tbody>
     </table>
-    <div class="show-more-area" id="moreArea" style="display:none;">
-        <button class="text-btn" id="t-more" onclick="toggleShowAll()">以前の履歴を表示</button>
+    
+    <div class="show-more-area">
+        <div id="moreArea" style="display:none;">
+            <button class="text-btn" id="t-more" onclick="toggleShowAll()">以前の履歴を表示</button>
+        </div>
+        <div style="margin-top:10px; border-top: 1px solid var(--input-border); padding-top:10px;">
+            <button class="text-btn" id="t-export" onclick="exportData()">データを書き出す</button>
+            <button class="text-btn" id="t-import" onclick="document.getElementById('importFile').click()">インポート</button>
+            <input type="file" id="importFile" accept=".json" onchange="importData(event)">
+        </div>
     </div>
 </div>
 
@@ -112,21 +122,23 @@
 </div>
 
 <script>
-const STORAGE_KEY = 'ev_calc_v10';
+const STORAGE_KEY = 'ev_calc_v11';
 const i18n = {
     ja: {
         title: "[ EVのガソリン車燃費換算 ]", kwh: "電費 (km/kWh)", wh: "電費 (Wh/km)",
         gas: "ガソリン価格 (¥/L)", elec: "電気代 (¥/kWh)", res: "ガソリン車換算での燃費",
         save: "データを履歴に保存", chart: "電費推移グラフ (km/kWh)", hDate: "日付", hEff: "電費",
-        close: "閉じる", helpT: "使い方", helpL: ["グラフは電費推移を表示します","直近10件以上の履歴はボタンで表示できます"], 
-        ph: "例: ", more: "以前の履歴を表示", less: "履歴をたたむ"
+        close: "閉じる", helpT: "使い方", helpL: ["計算結果を保存してグラフで確認できます","機種変更時は下部の書き出し/インポートをご利用ください"], 
+        ph: "例: ", more: "以前の履歴を表示", less: "履歴をたたむ",
+        export: "データを保存(JSON)", import: "データを復元", importConfirm: "現在のデータが上書きされます。よろしいですか？"
     },
     en: {
         title: "[ EV to Gas MPG Equivalent ]", kwh: "Eff (km/kWh)", wh: "Eff (Wh/km)",
         gas: "Gas (¥/L)", elec: "Elec (¥/kWh)", res: "Equivalent Economy",
         save: "Save to History", chart: "EV Efficiency Trend (km/kWh)", hDate: "Date", hEff: "Efficiency",
-        close: "Close", helpT: "Usage", helpL: ["Graph shows pure EV efficiency","View older entries with the button below"], 
-        ph: "e.g. ", more: "Show older history", less: "Show less"
+        close: "Close", helpT: "Usage", helpL: ["Save results to track trends","Use Export/Import for device migration"], 
+        ph: "e.g. ", more: "Show older history", less: "Show less",
+        export: "Export Data (JSON)", import: "Import Data", importConfirm: "Current data will be overwritten. Continue?"
     }
 };
 
@@ -146,7 +158,7 @@ function initChart() {
     chart = new Chart(ctx, {
         type: 'line',
         data: { labels: [], datasets: [{ label: 'km/kWh', data: [], borderColor: '#34a853', tension: 0.3, fill: true, backgroundColor: 'rgba(52, 168, 83, 0.1)' }] },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: false } } }
+        options: { responsive: true, maintainAspectRatio: false }
     });
 }
 
@@ -164,9 +176,11 @@ function updateUI() {
     document.getElementById('t-h-eff').innerText = t.hEff;
     document.getElementById('t-close').innerText = t.close;
     document.getElementById('t-help-title').innerText = t.helpT;
+    document.getElementById('t-more').innerText = showAll ? t.less : t.more;
+    document.getElementById('t-export').innerText = t.export;
+    document.getElementById('t-import').innerText = t.import;
     document.getElementById('langBtn').innerText = currentLang === 'ja' ? 'EN' : 'JP';
     document.getElementById('t-help-list').innerHTML = t.helpL.map(txt => `<li>${txt}</li>`).join('');
-    document.getElementById('t-more').innerText = showAll ? t.less : t.more;
     
     el.kmPerKwh.placeholder = t.ph + "6.0";
     el.whPerKm.placeholder = t.ph + "167";
@@ -180,14 +194,11 @@ function updateUI() {
 function calculate(source) {
     let kmKwh = parseFloat(el.kmPerKwh.value);
     let whKm = parseFloat(el.whPerKm.value);
-
     if (source === 'kmPerKwh' && !isNaN(kmKwh) && kmKwh > 0) { el.whPerKm.value = Math.round(1000 / kmKwh); } 
     else if (source === 'whPerKm' && !isNaN(whKm) && whKm > 0) { kmKwh = parseFloat((1000 / whKm).toFixed(2)); el.kmPerKwh.value = kmKwh; }
-
     const gasP = parseFloat(el.gasPrice.value);
     const elecP = parseFloat(el.elecPrice.value);
     const currentKmKwh = parseFloat(el.kmPerKwh.value);
-
     if (!isNaN(currentKmKwh) && !isNaN(gasP) && !isNaN(elecP) && elecP > 0) {
         const kmL = (currentKmKwh * gasP) / elecP;
         el.result.innerText = kmL.toFixed(1);
@@ -200,9 +211,7 @@ function calculate(source) {
 function saveToHistory() {
     const rawEff = parseFloat(el.kmPerKwh.value);
     if (isNaN(rawEff)) return;
-    const entry = { id: Date.now(), date: new Date().toLocaleDateString(), val: rawEff };
-    historyData.push(entry);
-    // グラフ用には全件保持するが、表示は制御する
+    historyData.push({ id: Date.now(), date: new Date().toLocaleDateString(), val: rawEff });
     renderHistory();
     saveToLocal();
 }
@@ -213,34 +222,53 @@ function deleteHistory(id) {
     saveToLocal();
 }
 
-function toggleShowAll() {
-    showAll = !showAll;
-    updateUI();
-}
+function toggleShowAll() { showAll = !showAll; updateUI(); }
 
 function renderHistory() {
     const body = document.getElementById('historyBody');
     body.innerHTML = '';
-    
-    // 表示用データの抽出（日付が新しい順）
     const sortedData = [...historyData].reverse();
     const displayData = showAll ? sortedData : sortedData.slice(0, 10);
-    
     displayData.forEach(item => {
         const row = `<tr><td>${item.date}</td><td>${item.val} km/kWh</td><td><button class="del-btn" onclick="deleteHistory(${item.id})">×</button></td></tr>`;
         body.insertAdjacentHTML('beforeend', row);
     });
-
-    // 「以前の履歴を表示」ボタンの制御
-    const moreArea = document.getElementById('moreArea');
-    moreArea.style.display = historyData.length > 10 ? 'block' : 'none';
-
-    // グラフ描画（グラフは常に全件使用）
+    document.getElementById('moreArea').style.display = historyData.length > 10 ? 'block' : 'none';
     if (chart) {
         chart.data.labels = historyData.map(d => d.date);
         chart.data.datasets[0].data = historyData.map(d => d.val);
         chart.update();
     }
+}
+
+// データエクスポート機能
+function exportData() {
+    const data = JSON.stringify({ storage: JSON.parse(localStorage.getItem(STORAGE_KEY)) }, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ev_data_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+}
+
+// データインポート機能
+function importData(event) {
+    if (!confirm(i18n[currentLang].importConfirm)) return;
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const imported = JSON.parse(e.target.result);
+            if (imported.storage) {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(imported.storage));
+                loadSettings();
+                alert("Import Successful");
+            }
+        } catch (err) { alert("Invalid File Format"); }
+    };
+    reader.readAsText(file);
 }
 
 function toggleLang() { currentLang = currentLang === 'ja' ? 'en' : 'ja'; updateUI(); }
@@ -271,7 +299,7 @@ function loadSettings() {
         document.documentElement.setAttribute('data-theme', saved.theme || 'light');
         document.getElementById('themeBtn').innerText = saved.theme === 'dark' ? '☀️' : '🌙';
     }
-    initChart();
+    if (!chart) initChart();
     updateUI();
 }
 
