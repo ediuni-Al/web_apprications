@@ -134,7 +134,7 @@ async function updateForecast() {
           <span class="weather-temp ${colorClass}">${wsimple} / ${temp}℃</span>
         </div>
         <div class="reason-text">
-          ${wsimple === "晴" ? "☀️ 余剰あり" : "☁️ 発電不足"} / ${tempReason}
+          ${wsimple === "晴" ? "☀️ ソーラー発電の余剰あり" : "☁️ ソーラー発電量不足"} / ${tempReason}
         </div>
         <div class="row-2">
           <div class="probability ${pct >= 70 ? 'prob-high' : ''}">${icon}${pct}%</div>
