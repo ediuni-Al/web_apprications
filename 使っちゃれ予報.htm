@@ -60,21 +60,18 @@
 <script>
 const url = "https://api.open-meteo.com/v1/forecast?latitude=31.5602&longitude=130.5581&daily=weathercode,temperature_2m_max&timezone=Asia%2FTokyo&forecast_days=8";
 
-// 今日の日付文字列(YYYY-MM-DD)を取得
 const getTodayStr = () => new Date().toLocaleDateString('sv-SE');
 
-// 読み込み時にボタン状態を復元
 function initStatus() {
     const today = getTodayStr();
     const actualHistory = JSON.parse(localStorage.getItem('actual_records') || '{}');
     
     if (actualHistory[today] !== undefined) {
         updateButtonUI(actualHistory[today]);
-        showAccuracyResult(actualHistory[today]);
     }
+    showAccuracyStats();
 }
 
-// UIの更新（ボタンの選択状態）
 function updateButtonUI(actualResult) {
     const btnYes = document.getElementById('btn-yes');
     const btnNo = document.getElementById('btn-no');
@@ -82,31 +79,43 @@ function updateButtonUI(actualResult) {
     btnNo.className = !actualResult ? 'btn-no selected' : 'btn-no not-selected';
 }
 
-// 答え合わせメッセージの表示
-function showAccuracyResult(actualResult) {
-    const today = getTodayStr();
-    const forecastHistory = JSON.parse(localStorage.getItem('forecast_history') || '{}');
+function showAccuracyStats() {
+    const actualHistory = JSON.parse(localStorage.getItem('actual_records') || '{}');
+    const forecastHistory = JSON.parse(localStorage.getItem('forecast_history_v2') || '{}');
     const resultDiv = document.getElementById('accuracy-result');
 
-    if (forecastHistory[today]) {
-        const pred = forecastHistory[today];
-        const isOk = (actualResult && pred >= 70) || (!actualResult && pred < 70);
-        resultDiv.innerHTML = `✅ 以前の予測: ${pred}% → ${isOk ? '🎯 的中！' : '😅 外れ'}`;
-    } else {
-        resultDiv.innerHTML = "✅ 記録しました（答え合わせは明日以降）";
+    const stats = { 2: { hit: 0, total: 0 }, 3: { hit: 0, total: 0 } };
+
+    // 保存されている実績データをもとに集計
+    for (const date in actualHistory) {
+        const actual = actualHistory[date];
+        const forecasts = forecastHistory[date]; // { "2": pct, "3": pct } のような形式を想定
+
+        if (forecasts) {
+            [2, 3].forEach(daysAgo => {
+                if (forecasts[daysAgo] !== undefined) {
+                    const pred = forecasts[daysAgo];
+                    const isHit = (actual && pred >= 70) || (!actual && pred < 70);
+                    stats[daysAgo].total++;
+                    if (isHit) stats[daysAgo].hit++;
+                }
+            });
+        }
     }
+
+    const getRateText = (s) => s.total === 0 ? "0%(0/0)" : `${Math.round(s.hit/s.total*100)}%(${s.hit}/${s.total})`;
+    
+    resultDiv.innerHTML = `🎯的中率：2日前 ${getRateText(stats[2])} / 3日前 ${getRateText(stats[3])}`;
 }
 
 function checkAccuracy(actualResult) {
     const today = getTodayStr();
     const actualHistory = JSON.parse(localStorage.getItem('actual_records') || '{}');
-
-    // 実施状況を保存
     actualHistory[today] = actualResult;
     localStorage.setItem('actual_records', JSON.stringify(actualHistory));
 
     updateButtonUI(actualResult);
-    showAccuracyResult(actualResult);
+    showAccuracyStats();
 }
 
 async function updateForecast() {
@@ -116,7 +125,9 @@ async function updateForecast() {
     const data = await response.json();
     const daily = data.daily;
     const container = document.getElementById("forecast-container");
-    const forecastHistory = JSON.parse(localStorage.getItem('forecast_history') || '{}');
+    
+    // v2: 日付ごとに「何日前の予測か」を保存する構造
+    const forecastHistory = JSON.parse(localStorage.getItem('forecast_history_v2') || '{}');
 
     container.innerHTML = "";
 
@@ -130,7 +141,6 @@ async function updateForecast() {
       let colorClass = code <= 3 ? "sun" : code >= 51 ? "rain" : "cloud";
       
       let pct = (wsimple === "晴") ? 75 : (wsimple === "曇") ? 50 : 25;
-      
       let tempReason = "標準";
       if (temp <= 24) { pct += 10; tempReason = "❄️ 低需要"; }
       else if (temp >= 28) { pct -= 10; tempReason = "⚠️ 需要増"; }
@@ -138,12 +148,13 @@ async function updateForecast() {
       const dayIdx = dateObj.getDay();
       const isHoliday = (dayIdx === 0 || dayIdx === 6);
       if (isHoliday) pct += 5;
-      
       pct += 5;
       pct = Math.min(95, Math.max(5, pct));
 
-      // 予測履歴を保存
-      forecastHistory[dateStr] = pct;
+      // 予測データの記録（i=1が明日, i=2が2日後...）
+      // 「今日から見てi日後の予報」を、そのターゲット日の「i日前予測」として保存
+      if (!forecastHistory[dateStr]) forecastHistory[dateStr] = {};
+      forecastHistory[dateStr][i] = pct;
 
       let accLabel = i <= 2 ? "高" : i <= 5 ? "中" : "低";
       let accClass = i <= 2 ? "acc-high" : i <= 5 ? "acc-mid" : "acc-low";
@@ -168,14 +179,14 @@ async function updateForecast() {
       `;
       container.appendChild(card);
     }
-    localStorage.setItem('forecast_history', JSON.stringify(forecastHistory));
+    localStorage.setItem('forecast_history_v2', JSON.stringify(forecastHistory));
+    showAccuracyStats(); // 予報読み込み後にも統計を更新
   } catch (e) { 
     console.error(e);
     document.getElementById("forecast-container").innerHTML = "<div id='loading'>取得エラーが発生しました。</div>"; 
   }
 }
 
-// 実行順序
 updateForecast();
 initStatus();
 </script>
