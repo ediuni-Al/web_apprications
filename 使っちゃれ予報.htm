@@ -202,7 +202,7 @@ async function updateForecast() {
       forecastHistory[dateStr][i] = { pct: pct, w: wsimple, t: temp };
 
       const colorClass = code <= 3 ? "sun" : code >= 51 ? "rain" : "cloud";
-      const icon = (pct >= 70) ? "🔥" : (pct <= 30) ? "△" : "⚪️";
+      const icon = (pct >= 70) ? "⚡️" : (pct <= 30) ? "△" : "⚪️";
       const accLabel = i <= 2 ? "高" : i <= 5 ? "中" : "低";
       const accClass = i <= 2 ? "acc-high" : i <= 5 ? "acc-mid" : "acc-low";
       
