@@ -5,100 +5,71 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>鹿児島市 使っチャレ予報</title>
 <style>
-  body {
-    font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
-    padding: 8px;
-    background: #f0f4f8;
-    margin: 0;
-    color: #333;
-  }
-  h1 {
-    font-size: 16px;
-    text-align: center;
-    color: #005a5a;
-    margin: 8px 0;
-    padding: 4px;
-    background: #e0ecec;
-    border-radius: 4px;
-  }
-  #forecast-container {
-    max-width: 500px;
-    margin: 0 auto;
-  }
-  .card {
-    background: white;
-    border-radius: 6px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-    margin-bottom: 6px;
-    padding: 8px 12px;
-    border-left: 5px solid #ccc;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .card.high { border-left-color: #ff5252; background: #fffefe; }
+  body { font-family: sans-serif; padding: 5px; background: #f0f4f8; margin: 0; color: #333; }
+  h1 { font-size: 15px; text-align: center; color: #004d40; margin: 5px 0; padding: 5px; background: #b2dfdb; border-radius: 4px; }
+  #forecast-container { max-width: 500px; margin: 0 auto; }
+  
+  /* 実績報告エリア */
+  .report-box { background: #fff; margin: 5px; padding: 10px; border-radius: 8px; border: 1px solid #ddd; text-align: center; }
+  .report-title { font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #555; }
+  .btn-group { display: flex; gap: 10px; justify-content: center; }
+  button { padding: 8px 20px; border: none; border-radius: 20px; font-weight: bold; font-size: 12px; cursor: pointer; }
+  .btn-yes { background: #ff5252; color: white; }
+  .btn-no { background: #90a4ae; color: white; }
+  .history-text { font-size: 11px; margin-top: 8px; color: #00796b; font-weight: bold; }
+
+  .card { background: white; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 5px; padding: 8px 12px; border-left: 5px solid #ccc; display: flex; flex-direction: column; }
+  .card.high { border-left-color: #ff5252; }
   .card.mid { border-left-color: #4db6ac; }
   .card.low { border-left-color: #90a4ae; }
 
-  .top-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .date-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .date {
-    font-size: 14px;
-    font-weight: bold;
-    color: #444;
-  }
-  .weather-temp {
-    font-size: 13px;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .sun { color: #e65100; }
-  .cloud { color: #546e7a; }
-  .rain { color: #1e88e5; }
+  .row-1 { display: flex; justify-content: space-between; align-items: center; font-size: 14px; margin-bottom: 4px; }
+  .date { font-weight: bold; }
+  .sun { color: #e65100; } .cloud { color: #546e7a; } .rain { color: #1e88e5; }
 
-  .main-content {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .probability {
-    font-size: 20px;
-    font-weight: 900;
-    min-width: 85px;
-  }
+  .row-2 { display: flex; align-items: flex-end; justify-content: space-between; }
+  .probability { font-size: 22px; font-weight: 900; line-height: 1; }
   .prob-high { color: #d32f2f; }
   
-  .short-reason {
-    font-size: 11px;
-    color: #666;
-    flex: 1;
-    text-align: right;
-    line-height: 1.2;
-  }
-
-  #loading { text-align: center; padding: 40px; color: #666; font-size: 14px; }
+  .info-group { text-align: right; font-size: 10px; color: #666; line-height: 1.3; }
+  .accuracy-label { display: inline-block; padding: 0 4px; border-radius: 2px; color: white; font-weight: bold; margin-left: 4px; }
+  .acc-high { background: #4caf50; } .acc-mid { background: #ffa000; } .acc-low { background: #78909c; }
 </style>
 </head>
 <body>
 
-<h1>[ 鹿児島市の使っチャレ予報(11:00-14:00) ]</h1>
+<h1>[鹿児島市の使っチャレ予報(11:00-14:00)]</h1>
 
-<div id="forecast-container">
-  <div id="loading">予報を解析中...</div>
+<div class="report-box" id="report-section">
+  <div class="report-title">💡 本日の「使っチャレ」は実施されましたか？</div>
+  <div class="btn-group">
+    <button class="btn-yes" onclick="checkAccuracy(true)">実施あり</button>
+    <button class="btn-no" onclick="checkAccuracy(false)">なし</button>
+  </div>
+  <div id="accuracy-result" class="history-text"></div>
 </div>
+
+<div id="forecast-container"></div>
 
 <script>
 const url = "https://api.open-meteo.com/v1/forecast?latitude=31.5602&longitude=130.5581&daily=weathercode,temperature_2m_max&timezone=Asia%2FTokyo&forecast_days=8";
+
+// 精度判定ロジック
+function checkAccuracy(actualResult) {
+  const today = new Date().toISOString().split('T')[0];
+  const history = JSON.parse(localStorage.getItem('forecast_history') || '{}');
+  const resultDiv = document.getElementById('accuracy-result');
+
+  if (history[today]) {
+    const predictedPct = history[today];
+    const isSuccess = (actualResult && predictedPct >= 70) || (!actualResult && predictedPct < 70);
+    
+    resultDiv.innerHTML = `2日前の予測: ${predictedPct}% → ${isSuccess ? '🎯 的中！' : '😅 外れ'}<br>` +
+                         `<small>(予測が70%以上の時に実施があれば的中と判定します)</small>`;
+  } else {
+    resultDiv.innerHTML = "2日前の予測データがありません。<br><small>数日使い続けると判定可能になります。</small>";
+  }
+}
 
 async function updateForecast() {
   try {
@@ -106,55 +77,55 @@ async function updateForecast() {
     const data = await response.json();
     const daily = data.daily;
     const container = document.getElementById("forecast-container");
+    const history = JSON.parse(localStorage.getItem('forecast_history') || '{}');
+
     container.innerHTML = "";
 
     for (let i = 1; i < daily.time.length; i++) {
-      const dateObj = new Date(daily.time[i]);
+      const dateStr = daily.time[i];
+      const dateObj = new Date(dateStr);
       const temp = Math.round(daily.temperature_2m_max[i]);
       const code = daily.weathercode[i];
 
-      let wsimple = "曇";
-      let colorClass = "cloud";
-      if (code <= 3) { wsimple = "晴"; colorClass = "sun"; }
-      else if (code >= 51) { wsimple = "雨"; colorClass = "rain"; }
-
+      // 天気・確率計算 (ロジック維持)
+      let wsimple = code <= 3 ? "晴" : code >= 51 ? "雨" : "曇";
+      let colorClass = code <= 3 ? "sun" : code >= 51 ? "rain" : "cloud";
       let pct = (wsimple === "晴") ? 75 : (wsimple === "曇") ? 50 : 25;
       if (temp <= 24) pct += 10;
       if (temp >= 28) pct -= 10;
-      
-      const dayIndex = dateObj.getDay();
-      const isHoliday = (dayIndex === 0 || dayIndex === 6);
-      if (isHoliday) pct += 5;
-      pct += 5; 
-      pct = Math.min(95, Math.max(5, pct));
+      const dayIdx = dateObj.getDay();
+      if (dayIdx === 0 || dayIdx === 6) pct += 5;
+      pct += 5; pct = Math.min(95, Math.max(5, pct));
 
+      // --- 履歴の保存 (2日後の精度判定用) ---
+      // 常に最新の「その日に対する予測値」を保存
+      history[dateStr] = pct;
+
+      let accLabel = i <= 2 ? "高" : i <= 5 ? "中" : "低";
+      let accClass = i <= 2 ? "acc-high" : i <= 5 ? "acc-mid" : "acc-low";
       let icon = (pct >= 70) ? "🔥" : (pct <= 30) ? "△" : "⚪️";
       let statusClass = (pct >= 70) ? "high" : (pct <= 30) ? "low" : "mid";
-      let dayName = ["日","月","火","水","木","金","土"][dayIndex];
 
       const card = document.createElement("div");
       card.className = `card ${statusClass}`;
       card.innerHTML = `
-        <div class="top-row">
-          <div class="date-group">
-            <span class="date">${dateObj.getMonth()+1}/${dateObj.getDate()}(${dayName})</span>
-            <span class="weather-temp ${colorClass}">${wsimple} / ${temp}℃</span>
-          </div>
-          <div style="font-size: 10px; color: #aaa;">${isHoliday ? '休日' : '平日'}</div>
+        <div class="row-1">
+          <span class="date">${dateObj.getMonth()+1}/${dateObj.getDate()}(${["日","月","火","水","木","金","土"][dayIdx]})</span>
+          <span class="weather-temp ${colorClass}">${wsimple} / ${temp}℃</span>
         </div>
-        <div class="main-content">
-          <div class="probability ${pct >= 70 ? 'prob-high' : ''}">${icon} ${pct}%</div>
-          <div class="short-reason">
-            ${wsimple === "晴" ? "余剰電力あり" : "発電低下"} / 
-            ${temp <= 24 ? "冷房不要" : temp >= 28 ? "需要増" : "標準"}
+        <div class="row-2">
+          <div class="probability ${pct >= 70 ? 'prob-high' : ''}">${icon}${pct}%</div>
+          <div class="info-group">
+            <div>予報精度:<span class="accuracy-label ${accClass}">${accLabel}</span></div>
           </div>
         </div>
       `;
       container.appendChild(card);
     }
-  } catch (e) {
-    document.getElementById("forecast-container").innerHTML = "<div id='loading'>データ取得エラー</div>";
-  }
+    // 保存（1ヶ月以上前のデータは削除するなどのクリーンアップは省略）
+    localStorage.setItem('forecast_history', JSON.stringify(history));
+
+  } catch (e) { container.innerHTML = "取得エラー"; }
 }
 updateForecast();
 </script>
