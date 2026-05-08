@@ -13,67 +13,78 @@
   .report-box { background: #fff; margin: 5px; padding: 10px; border-radius: 8px; border: 1px solid #ddd; text-align: center; }
   .report-title { font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #555; }
   .btn-group { display: flex; gap: 10px; justify-content: center; }
-  button { padding: 8px 20px; border: none; border-radius: 20px; font-weight: bold; font-size: 12px; cursor: pointer; }
+  button { padding: 8px 20px; border: 2px solid transparent; border-radius: 20px; font-weight: bold; font-size: 13px; cursor: pointer; transition: 0.2s; opacity: 0.6; }
   .btn-yes { background: #ff5252; color: white; }
   .btn-no { background: #90a4ae; color: white; }
-  .history-text { font-size: 11px; margin-top: 8px; color: #00796b; font-weight: bold; }
+  button.selected { opacity: 1; border-color: #333; transform: scale(1.05); }
+  button.not-selected { opacity: 0.3; }
+  .history-text { font-size: 11px; margin-top: 8px; color: #00796b; font-weight: bold; min-height: 1.2em; }
 
+  /* コンパクトカードデザイン */
   .card { background: white; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 5px; padding: 8px 12px; border-left: 5px solid #ccc; display: flex; flex-direction: column; }
   .card.high { border-left-color: #ff5252; }
   .card.mid { border-left-color: #4db6ac; }
   .card.low { border-left-color: #90a4ae; }
 
-  .row-1 { display: flex; justify-content: space-between; align-items: center; font-size: 14px; margin-bottom: 4px; }
+  .row-1 { display: flex; justify-content: space-between; align-items: center; font-size: 14px; margin-bottom: 2px; }
   .date { font-weight: bold; }
+  .weather-temp { font-weight: bold; }
   .sun { color: #e65100; } .cloud { color: #546e7a; } .rain { color: #1e88e5; }
 
   .row-2 { display: flex; align-items: flex-end; justify-content: space-between; }
   .probability { font-size: 22px; font-weight: 900; line-height: 1; }
   .prob-high { color: #d32f2f; }
   
-  .info-group { text-align: right; font-size: 10px; color: #666; line-height: 1.3; }
-  .accuracy-label { display: inline-block; padding: 0 4px; border-radius: 2px; color: white; font-weight: bold; margin-left: 4px; }
+  .reason-text { font-size: 11px; color: #444; font-weight: bold; margin-bottom: 2px; }
+  .info-group { text-align: right; font-size: 10px; color: #777; line-height: 1.2; }
+  .accuracy-label { display: inline-block; padding: 0 3px; border-radius: 2px; color: white; font-weight: bold; margin-left: 4px; }
   .acc-high { background: #4caf50; } .acc-mid { background: #ffa000; } .acc-low { background: #78909c; }
+  #loading { text-align: center; padding: 20px; font-size: 13px; color: #666; }
 </style>
 </head>
 <body>
 
 <h1>[鹿児島市の使っチャレ予報(11:00-14:00)]</h1>
 
-<div class="report-box" id="report-section">
-  <div class="report-title">💡 本日の「使っチャレ」は実施されましたか？</div>
+<div class="report-box">
+  <div class="report-title">💡 本日の実施状況を教えてください</div>
   <div class="btn-group">
-    <button class="btn-yes" onclick="checkAccuracy(true)">実施あり</button>
-    <button class="btn-no" onclick="checkAccuracy(false)">なし</button>
+    <button id="btn-yes" class="btn-yes" onclick="checkAccuracy(true)">実施あり</button>
+    <button id="btn-no" class="btn-no" onclick="checkAccuracy(false)">なし</button>
   </div>
   <div id="accuracy-result" class="history-text"></div>
 </div>
 
-<div id="forecast-container"></div>
+<div id="forecast-container">
+  <div id="loading">予報を取得しています...</div>
+</div>
 
 <script>
 const url = "https://api.open-meteo.com/v1/forecast?latitude=31.5602&longitude=130.5581&daily=weathercode,temperature_2m_max&timezone=Asia%2FTokyo&forecast_days=8";
 
-// 精度判定ロジック
 function checkAccuracy(actualResult) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD
   const history = JSON.parse(localStorage.getItem('forecast_history') || '{}');
+  const btnYes = document.getElementById('btn-yes');
+  const btnNo = document.getElementById('btn-no');
   const resultDiv = document.getElementById('accuracy-result');
 
+  btnYes.className = actualResult ? 'btn-yes selected' : 'btn-yes not-selected';
+  btnNo.className = !actualResult ? 'btn-no selected' : 'btn-no not-selected';
+
   if (history[today]) {
-    const predictedPct = history[today];
-    const isSuccess = (actualResult && predictedPct >= 70) || (!actualResult && predictedPct < 70);
-    
-    resultDiv.innerHTML = `2日前の予測: ${predictedPct}% → ${isSuccess ? '🎯 的中！' : '😅 外れ'}<br>` +
-                         `<small>(予測が70%以上の時に実施があれば的中と判定します)</small>`;
+    const pred = history[today];
+    const isOk = (actualResult && pred >= 70) || (!actualResult && pred < 70);
+    resultDiv.innerHTML = `✅ 2日前の予測: ${pred}% → ${isOk ? '🎯 的中！' : '😅 外れ'}`;
   } else {
-    resultDiv.innerHTML = "2日前の予測データがありません。<br><small>数日使い続けると判定可能になります。</small>";
+    resultDiv.innerHTML = "✅ 記録しました（答え合わせは明日以降）";
   }
 }
 
 async function updateForecast() {
   try {
     const response = await fetch(url);
+    if (!response.ok) throw new Error("Network error");
     const data = await response.json();
     const daily = data.daily;
     const container = document.getElementById("forecast-container");
@@ -87,45 +98,58 @@ async function updateForecast() {
       const temp = Math.round(daily.temperature_2m_max[i]);
       const code = daily.weathercode[i];
 
-      // 天気・確率計算 (ロジック維持)
+      // 天気分類
       let wsimple = code <= 3 ? "晴" : code >= 51 ? "雨" : "曇";
       let colorClass = code <= 3 ? "sun" : code >= 51 ? "rain" : "cloud";
+      
+      // 基本確率
       let pct = (wsimple === "晴") ? 75 : (wsimple === "曇") ? 50 : 25;
-      if (temp <= 24) pct += 10;
-      if (temp >= 28) pct -= 10;
-      const dayIdx = dateObj.getDay();
-      if (dayIdx === 0 || dayIdx === 6) pct += 5;
-      pct += 5; pct = Math.min(95, Math.max(5, pct));
+      
+      // 気温補正
+      let tempReason = "標準";
+      if (temp <= 24) { pct += 10; tempReason = "❄️ 低需要"; }
+      else if (temp >= 28) { pct -= 10; tempReason = "⚠️ 需要増"; }
 
-      // --- 履歴の保存 (2日後の精度判定用) ---
-      // 常に最新の「その日に対する予測値」を保存
+      // 休日補正
+      const dayIdx = dateObj.getDay();
+      const isHoliday = (dayIdx === 0 || dayIdx === 6);
+      if (isHoliday) pct += 5;
+      
+      pct += 5; // 季節
+      pct = Math.min(95, Math.max(5, pct));
+
+      // 履歴保存
       history[dateStr] = pct;
 
+      // 精度ラベル
       let accLabel = i <= 2 ? "高" : i <= 5 ? "中" : "低";
       let accClass = i <= 2 ? "acc-high" : i <= 5 ? "acc-mid" : "acc-low";
       let icon = (pct >= 70) ? "🔥" : (pct <= 30) ? "△" : "⚪️";
-      let statusClass = (pct >= 70) ? "high" : (pct <= 30) ? "low" : "mid";
-
+      
       const card = document.createElement("div");
-      card.className = `card ${statusClass}`;
+      card.className = `card ${pct >= 70 ? 'high' : pct <= 30 ? 'low' : 'mid'}`;
       card.innerHTML = `
         <div class="row-1">
           <span class="date">${dateObj.getMonth()+1}/${dateObj.getDate()}(${["日","月","火","水","木","金","土"][dayIdx]})</span>
           <span class="weather-temp ${colorClass}">${wsimple} / ${temp}℃</span>
         </div>
+        <div class="reason-text">
+          ${wsimple === "晴" ? "☀️ 余剰あり" : "☁️ 発電不足"} / ${tempReason}
+        </div>
         <div class="row-2">
           <div class="probability ${pct >= 70 ? 'prob-high' : ''}">${icon}${pct}%</div>
           <div class="info-group">
-            <div>予報精度:<span class="accuracy-label ${accClass}">${accLabel}</span></div>
+            ${isHoliday ? "休日補正" : "平日通常"} / 精度:<span class="accuracy-label ${accClass}">${accLabel}</span>
           </div>
         </div>
       `;
       container.appendChild(card);
     }
-    // 保存（1ヶ月以上前のデータは削除するなどのクリーンアップは省略）
     localStorage.setItem('forecast_history', JSON.stringify(history));
-
-  } catch (e) { container.innerHTML = "取得エラー"; }
+  } catch (e) { 
+    console.error(e);
+    document.getElementById("forecast-container").innerHTML = "<div id='loading'>取得エラーが発生しました。</div>"; 
+  }
 }
 updateForecast();
 </script>
