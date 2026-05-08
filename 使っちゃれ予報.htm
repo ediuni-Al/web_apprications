@@ -7,7 +7,7 @@
 <style>
   body { font-family: sans-serif; padding: 5px; background: #f0f4f8; margin: 0; color: #333; }
   h1 { font-size: 15px; text-align: center; color: #004d40; margin: 5px 0; padding: 5px; background: #b2dfdb; border-radius: 4px; }
-  #forecast-container { max-width: 500px; margin: 0 auto; }
+  #forecast-container, .history-container { max-width: 500px; margin: 0 auto; }
   
   .report-box { background: #fff; margin: 5px; padding: 10px; border-radius: 8px; border: 1px solid #ddd; text-align: center; }
   .report-title { font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #555; }
@@ -15,24 +15,33 @@
   button { padding: 8px 20px; border: 2px solid transparent; border-radius: 20px; font-weight: bold; font-size: 13px; cursor: pointer; transition: 0.2s; opacity: 0.6; outline: none; }
   .btn-yes { background: #ff5252; color: white; }
   .btn-no { background: #90a4ae; color: white; }
-  button.selected { opacity: 1; border-color: #333; transform: scale(1.05); box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-  button.not-selected { opacity: 0.3; }
-  .history-text { font-size: 11px; margin-top: 8px; color: #00796b; font-weight: bold; min-height: 1.2em; }
+  button.selected { opacity: 1; border-color: #333; transform: scale(1.05); box-shadow: 0 2px 4px rgba(0,0,0,0.2); pointer-events: none; }
+  button.not-selected { opacity: 0.2; filter: grayscale(1); }
+  
+  /* 入力済み表示 */
+  #submitted-badge { display: none; font-size: 11px; color: #2e7d32; margin-top: 5px; font-weight: bold; }
+  .history-summary { font-size: 11px; margin-top: 8px; color: #00796b; font-weight: bold; min-height: 1.2em; }
+  
+  .history-toggle { width: 100%; padding: 8px; margin-top: 10px; background: #e0f2f1; border: none; border-radius: 4px; font-size: 12px; color: #004d40; cursor: pointer; font-weight: bold; }
+  #history-content { display: none; background: #fff; margin: 5px; border-radius: 8px; border: 1px solid #ddd; padding: 10px; overflow-x: auto; }
+  .history-table { width: 100%; border-collapse: collapse; font-size: 10px; text-align: center; }
+  .history-table th { background: #f5f5f5; padding: 5px; border-bottom: 2px solid #ddd; }
+  .history-table td { padding: 5px; border-bottom: 1px solid #eee; }
+  .status-tag { padding: 2px 4px; border-radius: 4px; color: white; font-size: 9px; }
+  .status-on { background: #ff5252; }
+  .status-off { background: #90a4ae; }
 
   .card { background: white; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 5px; padding: 8px 12px; border-left: 5px solid #ccc; display: flex; flex-direction: column; }
   .card.high { border-left-color: #ff5252; }
   .card.mid { border-left-color: #4db6ac; }
   .card.low { border-left-color: #90a4ae; }
-
   .row-1 { display: flex; justify-content: space-between; align-items: center; font-size: 14px; margin-bottom: 2px; }
   .date { font-weight: bold; }
   .weather-temp { font-weight: bold; }
   .sun { color: #e65100; } .cloud { color: #546e7a; } .rain { color: #1e88e5; }
-
   .row-2 { display: flex; align-items: flex-end; justify-content: space-between; }
   .probability { font-size: 22px; font-weight: 900; line-height: 1; }
   .prob-high { color: #d32f2f; }
-  
   .reason-text { font-size: 11px; color: #444; font-weight: bold; margin-bottom: 2px; }
   .info-group { text-align: right; font-size: 10px; color: #777; line-height: 1.2; }
   .accuracy-label { display: inline-block; padding: 0 3px; border-radius: 2px; color: white; font-weight: bold; margin-left: 4px; }
@@ -50,7 +59,24 @@
     <button id="btn-yes" class="btn-yes" onclick="checkAccuracy(true)">実施あり</button>
     <button id="btn-no" class="btn-no" onclick="checkAccuracy(false)">なし</button>
   </div>
-  <div id="accuracy-result" class="history-text"></div>
+  <div id="submitted-badge">✅ 本日の入力済み</div>
+  
+  <div id="accuracy-result" class="history-summary"></div>
+  
+  <button class="history-toggle" onclick="toggleHistory()">▼ これまでの結果履歴を見る</button>
+  <div id="history-content">
+    <table class="history-table">
+      <thead>
+        <tr>
+          <th>日付</th>
+          <th>実績</th>
+          <th>2日前予測(天気/的中)</th>
+          <th>3日前予測(天気/的中)</th>
+        </tr>
+      </thead>
+      <tbody id="history-tbody"></tbody>
+    </table>
+  </div>
 </div>
 
 <div id="forecast-container">
@@ -65,47 +91,80 @@ const getTodayStr = () => new Date().toLocaleDateString('sv-SE');
 function initStatus() {
     const today = getTodayStr();
     const actualHistory = JSON.parse(localStorage.getItem('actual_records') || '{}');
-    
     if (actualHistory[today] !== undefined) {
         updateButtonUI(actualHistory[today]);
     }
     showAccuracyStats();
 }
 
+function toggleHistory() {
+    const content = document.getElementById('history-content');
+    content.style.display = content.style.display === 'block' ? 'none' : 'block';
+    if (content.style.display === 'block') renderHistoryTable();
+}
+
 function updateButtonUI(actualResult) {
     const btnYes = document.getElementById('btn-yes');
     const btnNo = document.getElementById('btn-no');
+    const badge = document.getElementById('submitted-badge');
+    
     btnYes.className = actualResult ? 'btn-yes selected' : 'btn-yes not-selected';
     btnNo.className = !actualResult ? 'btn-no selected' : 'btn-no not-selected';
+    
+    // 入力済み表示を出す
+    badge.style.display = 'block';
 }
 
 function showAccuracyStats() {
     const actualHistory = JSON.parse(localStorage.getItem('actual_records') || '{}');
-    const forecastHistory = JSON.parse(localStorage.getItem('forecast_history_v2') || '{}');
+    const forecastHistory = JSON.parse(localStorage.getItem('forecast_history_v3') || '{}');
     const resultDiv = document.getElementById('accuracy-result');
-
     const stats = { 2: { hit: 0, total: 0 }, 3: { hit: 0, total: 0 } };
 
-    // 保存されている実績データをもとに集計
     for (const date in actualHistory) {
         const actual = actualHistory[date];
-        const forecasts = forecastHistory[date]; // { "2": pct, "3": pct } のような形式を想定
-
+        const forecasts = forecastHistory[date];
         if (forecasts) {
-            [2, 3].forEach(daysAgo => {
-                if (forecasts[daysAgo] !== undefined) {
-                    const pred = forecasts[daysAgo];
-                    const isHit = (actual && pred >= 70) || (!actual && pred < 70);
-                    stats[daysAgo].total++;
-                    if (isHit) stats[daysAgo].hit++;
+            [2, 3].forEach(d => {
+                if (forecasts[d]) {
+                    const isHit = (actual && forecasts[d].pct >= 70) || (!actual && forecasts[d].pct < 70);
+                    stats[d].total++;
+                    if (isHit) stats[d].hit++;
                 }
             });
         }
     }
+    const getRate = (s) => s.total === 0 ? "0%(0/0)" : `${Math.round(s.hit/s.total*100)}%(${s.hit}/${s.total})`;
+    resultDiv.innerHTML = `🎯的中率：2日前 ${getRate(stats[2])} / 3日前 ${getRate(stats[3])}`;
+}
 
-    const getRateText = (s) => s.total === 0 ? "0%(0/0)" : `${Math.round(s.hit/s.total*100)}%(${s.hit}/${s.total})`;
-    
-    resultDiv.innerHTML = `🎯的中率：2日前 ${getRateText(stats[2])} / 3日前 ${getRateText(stats[3])}`;
+function renderHistoryTable() {
+    const actualHistory = JSON.parse(localStorage.getItem('actual_records') || '{}');
+    const forecastHistory = JSON.parse(localStorage.getItem('forecast_history_v3') || '{}');
+    const tbody = document.getElementById('history-tbody');
+    tbody.innerHTML = "";
+
+    const dates = Object.keys(actualHistory).sort().reverse().slice(0, 14);
+
+    dates.forEach(date => {
+        const actual = actualHistory[date];
+        const f = forecastHistory[date] || {};
+        const tr = document.createElement('tr');
+        
+        const getDetail = (d) => {
+            if (!f[d]) return "-";
+            const isHit = (actual && f[d].pct >= 70) || (!actual && f[d].pct < 70);
+            return `${f[d].w}/${f[d].t}℃<br>(${f[d].pct}%) ${isHit ? '🎯' : '😅'}`;
+        };
+
+        tr.innerHTML = `
+            <td>${date.slice(5)}</td>
+            <td><span class="status-tag ${actual ? 'status-on' : 'status-off'}">${actual ? 'あり' : 'なし'}</span></td>
+            <td>${getDetail(2)}</td>
+            <td>${getDetail(3)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
 }
 
 function checkAccuracy(actualResult) {
@@ -113,78 +172,57 @@ function checkAccuracy(actualResult) {
     const actualHistory = JSON.parse(localStorage.getItem('actual_records') || '{}');
     actualHistory[today] = actualResult;
     localStorage.setItem('actual_records', JSON.stringify(actualHistory));
-
     updateButtonUI(actualResult);
     showAccuracyStats();
+    if (document.getElementById('history-content').style.display === 'block') renderHistoryTable();
 }
 
 async function updateForecast() {
   try {
     const response = await fetch(url);
-    if (!response.ok) throw new Error("Network error");
     const data = await response.json();
     const daily = data.daily;
     const container = document.getElementById("forecast-container");
-    
-    // v2: 日付ごとに「何日前の予測か」を保存する構造
-    const forecastHistory = JSON.parse(localStorage.getItem('forecast_history_v2') || '{}');
+    const forecastHistory = JSON.parse(localStorage.getItem('forecast_history_v3') || '{}');
 
     container.innerHTML = "";
 
     for (let i = 1; i < daily.time.length; i++) {
       const dateStr = daily.time[i];
-      const dateObj = new Date(dateStr);
       const temp = Math.round(daily.temperature_2m_max[i]);
       const code = daily.weathercode[i];
-
       let wsimple = code <= 3 ? "晴" : code >= 51 ? "雨" : "曇";
-      let colorClass = code <= 3 ? "sun" : code >= 51 ? "rain" : "cloud";
-      
       let pct = (wsimple === "晴") ? 75 : (wsimple === "曇") ? 50 : 25;
-      let tempReason = "標準";
-      if (temp <= 24) { pct += 10; tempReason = "❄️ 低需要"; }
-      else if (temp >= 28) { pct -= 10; tempReason = "⚠️ 需要増"; }
+      if (temp <= 24) pct += 10; else if (temp >= 28) pct -= 10;
+      const dateObj = new Date(dateStr);
+      if (dateObj.getDay() === 0 || dateObj.getDay() === 6) pct += 5;
+      pct = Math.min(95, Math.max(5, pct + 5));
 
-      const dayIdx = dateObj.getDay();
-      const isHoliday = (dayIdx === 0 || dayIdx === 6);
-      if (isHoliday) pct += 5;
-      pct += 5;
-      pct = Math.min(95, Math.max(5, pct));
-
-      // 予測データの記録（i=1が明日, i=2が2日後...）
-      // 「今日から見てi日後の予報」を、そのターゲット日の「i日前予測」として保存
       if (!forecastHistory[dateStr]) forecastHistory[dateStr] = {};
-      forecastHistory[dateStr][i] = pct;
+      forecastHistory[dateStr][i] = { pct: pct, w: wsimple, t: temp };
 
-      let accLabel = i <= 2 ? "高" : i <= 5 ? "中" : "低";
-      let accClass = i <= 2 ? "acc-high" : i <= 5 ? "acc-mid" : "acc-low";
-      let icon = (pct >= 70) ? "🔥" : (pct <= 30) ? "△" : "⚪️";
+      const colorClass = code <= 3 ? "sun" : code >= 51 ? "rain" : "cloud";
+      const icon = (pct >= 70) ? "🔥" : (pct <= 30) ? "△" : "⚪️";
+      const accLabel = i <= 2 ? "高" : i <= 5 ? "中" : "低";
+      const accClass = i <= 2 ? "acc-high" : i <= 5 ? "acc-mid" : "acc-low";
       
       const card = document.createElement("div");
       card.className = `card ${pct >= 70 ? 'high' : pct <= 30 ? 'low' : 'mid'}`;
       card.innerHTML = `
         <div class="row-1">
-          <span class="date">${dateObj.getMonth()+1}/${dateObj.getDate()}(${["日","月","火","水","木","金","土"][dayIdx]})</span>
+          <span class="date">${dateObj.getMonth()+1}/${dateObj.getDate()}(${["日","月","火","水","木","金","土"][dateObj.getDay()]})</span>
           <span class="weather-temp ${colorClass}">${wsimple} / ${temp}℃</span>
         </div>
-        <div class="reason-text">
-          ${wsimple === "晴" ? "☀️ ソーラー発電の余剰あり" : "☁️ ソーラー発電量不足"} / ${tempReason}
-        </div>
+        <div class="reason-text">${wsimple === "晴" ? "☀️ 余剰あり" : "☁️ 不足"} / ${temp <= 24 ? "❄️低需要":"標準"}</div>
         <div class="row-2">
           <div class="probability ${pct >= 70 ? 'prob-high' : ''}">${icon}${pct}%</div>
-          <div class="info-group">
-            ${isHoliday ? "休日補正" : "平日通常"} / 精度:<span class="accuracy-label ${accClass}">${accLabel}</span>
-          </div>
-        </div>
-      `;
+          <div class="info-group">精度:<span class="accuracy-label ${accClass}">${accLabel}</span></div>
+        </div>`;
       container.appendChild(card);
     }
-    localStorage.setItem('forecast_history_v2', JSON.stringify(forecastHistory));
-    showAccuracyStats(); // 予報読み込み後にも統計を更新
-  } catch (e) { 
-    console.error(e);
-    document.getElementById("forecast-container").innerHTML = "<div id='loading'>取得エラーが発生しました。</div>"; 
-  }
+    localStorage.setItem('forecast_history_v3', JSON.stringify(forecastHistory));
+    showAccuracyStats();
+  } catch (e) { document.getElementById("forecast-container").innerHTML = "取得エラー"; }
 }
 
 updateForecast();
