@@ -9,18 +9,16 @@
   h1 { font-size: 15px; text-align: center; color: #004d40; margin: 5px 0; padding: 5px; background: #b2dfdb; border-radius: 4px; }
   #forecast-container { max-width: 500px; margin: 0 auto; }
   
-  /* 実績報告エリア */
   .report-box { background: #fff; margin: 5px; padding: 10px; border-radius: 8px; border: 1px solid #ddd; text-align: center; }
   .report-title { font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #555; }
   .btn-group { display: flex; gap: 10px; justify-content: center; }
-  button { padding: 8px 20px; border: 2px solid transparent; border-radius: 20px; font-weight: bold; font-size: 13px; cursor: pointer; transition: 0.2s; opacity: 0.6; }
+  button { padding: 8px 20px; border: 2px solid transparent; border-radius: 20px; font-weight: bold; font-size: 13px; cursor: pointer; transition: 0.2s; opacity: 0.6; outline: none; }
   .btn-yes { background: #ff5252; color: white; }
   .btn-no { background: #90a4ae; color: white; }
-  button.selected { opacity: 1; border-color: #333; transform: scale(1.05); }
+  button.selected { opacity: 1; border-color: #333; transform: scale(1.05); box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
   button.not-selected { opacity: 0.3; }
   .history-text { font-size: 11px; margin-top: 8px; color: #00796b; font-weight: bold; min-height: 1.2em; }
 
-  /* コンパクトカードデザイン */
   .card { background: white; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 5px; padding: 8px 12px; border-left: 5px solid #ccc; display: flex; flex-direction: column; }
   .card.high { border-left-color: #ff5252; }
   .card.mid { border-left-color: #4db6ac; }
@@ -62,23 +60,53 @@
 <script>
 const url = "https://api.open-meteo.com/v1/forecast?latitude=31.5602&longitude=130.5581&daily=weathercode,temperature_2m_max&timezone=Asia%2FTokyo&forecast_days=8";
 
+// 今日の日付文字列(YYYY-MM-DD)を取得
+const getTodayStr = () => new Date().toLocaleDateString('sv-SE');
+
+// 読み込み時にボタン状態を復元
+function initStatus() {
+    const today = getTodayStr();
+    const actualHistory = JSON.parse(localStorage.getItem('actual_records') || '{}');
+    
+    if (actualHistory[today] !== undefined) {
+        updateButtonUI(actualHistory[today]);
+        showAccuracyResult(actualHistory[today]);
+    }
+}
+
+// UIの更新（ボタンの選択状態）
+function updateButtonUI(actualResult) {
+    const btnYes = document.getElementById('btn-yes');
+    const btnNo = document.getElementById('btn-no');
+    btnYes.className = actualResult ? 'btn-yes selected' : 'btn-yes not-selected';
+    btnNo.className = !actualResult ? 'btn-no selected' : 'btn-no not-selected';
+}
+
+// 答え合わせメッセージの表示
+function showAccuracyResult(actualResult) {
+    const today = getTodayStr();
+    const forecastHistory = JSON.parse(localStorage.getItem('forecast_history') || '{}');
+    const resultDiv = document.getElementById('accuracy-result');
+
+    if (forecastHistory[today]) {
+        const pred = forecastHistory[today];
+        const isOk = (actualResult && pred >= 70) || (!actualResult && pred < 70);
+        resultDiv.innerHTML = `✅ 以前の予測: ${pred}% → ${isOk ? '🎯 的中！' : '😅 外れ'}`;
+    } else {
+        resultDiv.innerHTML = "✅ 記録しました（答え合わせは明日以降）";
+    }
+}
+
 function checkAccuracy(actualResult) {
-  const today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD
-  const history = JSON.parse(localStorage.getItem('forecast_history') || '{}');
-  const btnYes = document.getElementById('btn-yes');
-  const btnNo = document.getElementById('btn-no');
-  const resultDiv = document.getElementById('accuracy-result');
+    const today = getTodayStr();
+    const actualHistory = JSON.parse(localStorage.getItem('actual_records') || '{}');
 
-  btnYes.className = actualResult ? 'btn-yes selected' : 'btn-yes not-selected';
-  btnNo.className = !actualResult ? 'btn-no selected' : 'btn-no not-selected';
+    // 実施状況を保存
+    actualHistory[today] = actualResult;
+    localStorage.setItem('actual_records', JSON.stringify(actualHistory));
 
-  if (history[today]) {
-    const pred = history[today];
-    const isOk = (actualResult && pred >= 70) || (!actualResult && pred < 70);
-    resultDiv.innerHTML = `✅ 2日前の予測: ${pred}% → ${isOk ? '🎯 的中！' : '😅 外れ'}`;
-  } else {
-    resultDiv.innerHTML = "✅ 記録しました（答え合わせは明日以降）";
-  }
+    updateButtonUI(actualResult);
+    showAccuracyResult(actualResult);
 }
 
 async function updateForecast() {
@@ -88,7 +116,7 @@ async function updateForecast() {
     const data = await response.json();
     const daily = data.daily;
     const container = document.getElementById("forecast-container");
-    const history = JSON.parse(localStorage.getItem('forecast_history') || '{}');
+    const forecastHistory = JSON.parse(localStorage.getItem('forecast_history') || '{}');
 
     container.innerHTML = "";
 
@@ -98,30 +126,25 @@ async function updateForecast() {
       const temp = Math.round(daily.temperature_2m_max[i]);
       const code = daily.weathercode[i];
 
-      // 天気分類
       let wsimple = code <= 3 ? "晴" : code >= 51 ? "雨" : "曇";
       let colorClass = code <= 3 ? "sun" : code >= 51 ? "rain" : "cloud";
       
-      // 基本確率
       let pct = (wsimple === "晴") ? 75 : (wsimple === "曇") ? 50 : 25;
       
-      // 気温補正
       let tempReason = "標準";
       if (temp <= 24) { pct += 10; tempReason = "❄️ 低需要"; }
       else if (temp >= 28) { pct -= 10; tempReason = "⚠️ 需要増"; }
 
-      // 休日補正
       const dayIdx = dateObj.getDay();
       const isHoliday = (dayIdx === 0 || dayIdx === 6);
       if (isHoliday) pct += 5;
       
-      pct += 5; // 季節
+      pct += 5;
       pct = Math.min(95, Math.max(5, pct));
 
-      // 履歴保存
-      history[dateStr] = pct;
+      // 予測履歴を保存
+      forecastHistory[dateStr] = pct;
 
-      // 精度ラベル
       let accLabel = i <= 2 ? "高" : i <= 5 ? "中" : "低";
       let accClass = i <= 2 ? "acc-high" : i <= 5 ? "acc-mid" : "acc-low";
       let icon = (pct >= 70) ? "🔥" : (pct <= 30) ? "△" : "⚪️";
@@ -145,13 +168,16 @@ async function updateForecast() {
       `;
       container.appendChild(card);
     }
-    localStorage.setItem('forecast_history', JSON.stringify(history));
+    localStorage.setItem('forecast_history', JSON.stringify(forecastHistory));
   } catch (e) { 
     console.error(e);
     document.getElementById("forecast-container").innerHTML = "<div id='loading'>取得エラーが発生しました。</div>"; 
   }
 }
+
+// 実行順序
 updateForecast();
+initStatus();
 </script>
 </body>
 </html>
