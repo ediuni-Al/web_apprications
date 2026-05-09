@@ -7,9 +7,11 @@
 <style>
   body { font-family: sans-serif; padding: 5px; background: #f0f4f8; margin: 0; color: #333; }
   h1 { font-size: 15px; text-align: center; color: #004d40; margin: 5px 0; padding: 5px; background: #b2dfdb; border-radius: 4px; }
-  #forecast-container, .history-container { max-width: 500px; margin: 0 auto; }
   
-  .report-box { background: #fff; margin: 5px; padding: 10px; border-radius: 8px; border: 1px solid #ddd; text-align: center; }
+  /* コンテナの幅を統一 */
+  #forecast-container, .report-box, .history-container { max-width: 500px; margin: 0 auto; box-sizing: border-box; }
+  
+  .report-box { background: #fff; margin: 5px auto; padding: 10px; border-radius: 8px; border: 1px solid #ddd; text-align: center; }
   .report-title { font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #555; }
   .btn-group { display: flex; gap: 10px; justify-content: center; }
   button { padding: 8px 20px; border: 2px solid transparent; border-radius: 20px; font-weight: bold; font-size: 13px; cursor: pointer; transition: 0.2s; opacity: 0.6; outline: none; }
@@ -22,15 +24,26 @@
   .history-summary { font-size: 11px; margin-top: 8px; color: #00796b; font-weight: bold; min-height: 1.2em; }
   
   .history-toggle { width: 100%; padding: 8px; margin-top: 10px; background: #e0f2f1; border: none; border-radius: 4px; font-size: 12px; color: #004d40; cursor: pointer; font-weight: bold; }
-  #history-content { display: none; background: #fff; margin: 5px; border-radius: 8px; border: 1px solid #ddd; padding: 10px; overflow-x: auto; }
-  .history-table { width: 100%; border-collapse: collapse; font-size: 10px; text-align: center; }
+  #history-content { display: none; background: #fff; margin-top: 5px; padding: 5px; }
+  
+  /* カレンダー用スタイル：幅を親に合わせる */
+  .cal-container { margin-top: 10px; border-top: 1px dashed #ccc; padding-top: 10px; width: 100%; }
+  .cal-table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
+  .cal-table th { color: #666; padding: 5px 0; font-size: 10px; }
+  .cal-table td { height: 45px; border: 1px solid #eee; vertical-align: top; padding: 2px; position: relative; background: #fff; }
+  .cal-day-num { display: block; margin-bottom: 2px; color: #777; }
+  .cal-sunday { background: #fff5f5 !important; color: #c2185b; }
+  .cal-mark { display: block; text-align: center; font-size: 18px; color: #fbc02d; line-height: 1.2; }
+  .cal-today { outline: 2px solid #4db6ac; z-index: 1; background: #e0f2f1 !important; }
+
+  .history-table { width: 100%; border-collapse: collapse; font-size: 10px; text-align: center; margin-top: 15px; background: #fff; }
   .history-table th { background: #f5f5f5; padding: 5px; border-bottom: 2px solid #ddd; }
   .history-table td { padding: 5px; border-bottom: 1px solid #eee; }
   .status-tag { padding: 2px 4px; border-radius: 4px; color: white; font-size: 9px; }
   .status-on { background: #ff5252; }
   .status-off { background: #90a4ae; }
 
-  .card { background: white; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 5px; padding: 8px 12px; border-left: 5px solid #ccc; display: flex; flex-direction: column; }
+  .card { background: white; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin: 5px auto; padding: 8px 12px; border-left: 5px solid #ccc; display: flex; flex-direction: column; }
   .card.high { border-left-color: #ff5252; }
   .card.mid { border-left-color: #4db6ac; }
   .card.low { border-left-color: #90a4ae; }
@@ -62,15 +75,25 @@
   
   <div id="accuracy-result" class="history-summary"></div>
   
-  <button class="history-toggle" onclick="toggleHistory()">▼ これまでの結果履歴を見る</button>
+  <button class="history-toggle" onclick="toggleHistory()">▼ 実績カレンダー・履歴</button>
   <div id="history-content">
+    <div class="cal-container">
+      <div id="calendar-month-title" style="font-weight:bold; margin-bottom:5px; font-size:12px; text-align:left; padding-left:5px;"></div>
+      <table class="cal-table">
+        <thead>
+          <tr><th>日</th><th>月</th><th>火</th><th>水</th><th>木</th><th>金</th><th>土</th></tr>
+        </thead>
+        <tbody id="calendar-tbody"></tbody>
+      </table>
+    </div>
+
     <table class="history-table">
       <thead>
         <tr>
           <th>日付</th>
           <th>実績</th>
-          <th>2日前予測(天気/的中)</th>
-          <th>3日前予測(天気/的中)</th>
+          <th>2日前予測</th>
+          <th>3日前予測</th>
         </tr>
       </thead>
       <tbody id="history-tbody"></tbody>
@@ -99,7 +122,52 @@ function initStatus() {
 function toggleHistory() {
     const content = document.getElementById('history-content');
     content.style.display = content.style.display === 'block' ? 'none' : 'block';
-    if (content.style.display === 'block') renderHistoryTable();
+    if (content.style.display === 'block') {
+        renderCalendar();
+        renderHistoryTable();
+    }
+}
+
+function renderCalendar() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const actualHistory = JSON.parse(localStorage.getItem('actual_records') || '{}');
+    
+    document.getElementById('calendar-month-title').innerText = `${year}年 ${month + 1}月`;
+    
+    const firstDay = new Date(year, month, 1).getDay();
+    const lastDate = new Date(year, month + 1, 0).getDate();
+    const tbody = document.getElementById('calendar-tbody');
+    tbody.innerHTML = "";
+    
+    let date = 1;
+    for (let i = 0; i < 6; i++) {
+        const row = document.createElement("tr");
+        let hasDateInRow = false;
+        for (let j = 0; j < 7; j++) {
+            const cell = document.createElement("td");
+            if (i === 0 && j < firstDay) {
+                cell.style.background = "#f9f9f9";
+            } else if (date > lastDate) {
+                cell.style.background = "#f9f9f9";
+            } else {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
+                if (j === 0) cell.className = "cal-sunday";
+                if (dateStr === getTodayStr()) cell.classList.add("cal-today");
+                
+                cell.innerHTML = `<span class="cal-day-num">${date}</span>`;
+                if (actualHistory[dateStr] === true) {
+                    cell.innerHTML += `<span class="cal-mark">⚡️</span>`;
+                }
+                date++;
+                hasDateInRow = true;
+            }
+            row.appendChild(cell);
+        }
+        if (hasDateInRow) tbody.appendChild(row);
+        if (date > lastDate) break;
+    }
 }
 
 function updateButtonUI(actualResult) {
@@ -119,7 +187,6 @@ function showAccuracyStats() {
     const stats = { 2: { hit: 0, total: 0 }, 3: { hit: 0, total: 0 } };
 
     for (const date in actualHistory) {
-        // 日曜日を除外
         const dObj = new Date(date);
         if (dObj.getDay() === 0) continue;
 
@@ -149,7 +216,6 @@ function renderHistoryTable() {
     let count = 0;
 
     dates.forEach(date => {
-        // 14日分表示するが、日曜日はカウントせずスキップ
         const dObj = new Date(date);
         if (dObj.getDay() === 0) return;
         if (count >= 14) return;
@@ -161,7 +227,7 @@ function renderHistoryTable() {
         const getDetail = (d) => {
             if (!f[d]) return "-";
             const isHit = (actual && f[d].pct >= 70) || (!actual && f[d].pct < 70);
-            return `${f[d].w}/${f[d].t}℃<br>(${f[d].pct}%) ${isHit ? '🎯' : '😅'}`;
+            return `${f[d].w}(${f[d].pct}%) ${isHit ? '🎯' : '😅'}`;
         };
 
         tr.innerHTML = `
@@ -182,7 +248,10 @@ function checkAccuracy(actualResult) {
     localStorage.setItem('actual_records', JSON.stringify(actualHistory));
     updateButtonUI(actualResult);
     showAccuracyStats();
-    if (document.getElementById('history-content').style.display === 'block') renderHistoryTable();
+    if (document.getElementById('history-content').style.display === 'block') {
+        renderCalendar();
+        renderHistoryTable();
+    }
 }
 
 async function updateForecast() {
@@ -199,7 +268,6 @@ async function updateForecast() {
       const dateStr = daily.time[i];
       const dateObj = new Date(dateStr);
 
-      // 日曜日なら予報カードを作らずスキップ
       if (dateObj.getDay() === 0) continue;
 
       const temp = Math.round(daily.temperature_2m_max[i]);
@@ -208,7 +276,6 @@ async function updateForecast() {
       let pct = (wsimple === "晴") ? 75 : (wsimple === "曇") ? 50 : 25;
       if (temp <= 24) pct += 10; else if (temp >= 28) pct -= 10;
       
-      // 土曜日のみ少し加点
       if (dateObj.getDay() === 6) pct += 5;
       pct = Math.min(95, Math.max(5, pct + 5));
 
