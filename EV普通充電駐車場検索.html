@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>福岡パーキング＆EV情報（下道ナビ・状況確認）</title>
+    <style>
+        /* ベーススタイル */
+        :root {
+            --bg-color: #f5f7fa;
+            --card-bg: #ffffff;
+            --text-main: #333333;
+            --text-sub: #666666;
+            --status-bg: #718093; /* 確認ボタンの標準色（グレー） */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            padding-bottom: 30px;
+        }
+
+        /* ヘッダー */
+        header {
+            background-color: #1e272e;
+            color: #ffffff;
+            text-align: center;
+            padding: 15px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        /* メインコンテナ */
+        .container {
+            padding: 15px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        /* アプリ説明文 */
+        .app-notice {
+            font-size: 0.8rem;
+            color: var(--text-sub);
+            background-color: #eed;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            line-height: 1.4;
+            border-left: 4px solid #f1c40f;
+        }
+
+        /* グループ区切り線のスタイル */
+        .section-divider {
+            display: flex;
+            align-items: center;
+            margin: 25px 0 12px 0;
+            color: var(--text-sub);
+            font-size: 0.85rem;
+            font-weight: bold;
+            letter-spacing: 0.05em;
+        }
+
+        .section-divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background-color: #dcdde1;
+            margin-left: 10px;
+        }
+
+        /* 駐車場カード（全体を横並びにする親要素） */
+        .parking-item {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: stretch; /* 左右のボタンの高さを揃える */
+            overflow: hidden;
+        }
+
+        /* 左側：ナビボタン（カードのメインエリア） */
+        .navi-btn {
+            flex: 1;
+            padding: 15px;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .navi-btn:active {
+            background-color: #fafafa;
+        }
+
+        .parking-brand {
+            font-size: 0.75rem;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        /* ブランドごとの文字色 */
+        .brand-qden { color: #2ecc71; }   /* エコQ電: 黄緑 */
+        .brand-system { color: #3498db; } /* システムパーク: 青 */
+        .brand-times { color: #f39c12; }  /* タイムズ: オレンジ */
+
+        .parking-name {
+            font-size: 1rem;
+            font-weight: bold;
+            line-height: 1.4;
+            margin-bottom: 6px;
+        }
+
+        .badges {
+            display: flex;
+            gap: 5px;
+        }
+
+        .badge-ev {
+            background-color: #e8f8f5;
+            color: #1abc9c;
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .badge-navi {
+            background-color: #efebe9;
+            color: #4e342e;
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        /* 右側：状況確認ボタン */
+        .status-btn {
+            width: 90px;
+            background-color: var(--status-bg);
+            color: #ffffff;
+            text-decoration: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 0.85rem;
+            text-align: center;
+            border-left: 1px solid #f1f2f6;
+            -webkit-tap-highlight-color: transparent;
+            line-height: 1.3;
+        }
+
+        .status-btn:active {
+            background-color: #57606f;
+        }
+
+        .status-icon {
+            font-size: 1.1rem;
+            margin-bottom: 2px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>🚗 福岡EV充電＆駐車場ナビ</header>
+
+    <div class="container">
+
+        <div id="parking-list"></div>
+    </div>
+
+    <script>
+        // Googleマップ公式の推奨形式（maps/dir/?api=1）に変更し、確実にスマホの「現在地」から出発するようにしました。
+        // origin=（出発地なし、空欄）にすることで、自動的に現在地が指定されます。
+        const parkingData = [
+            // --- エコQ電 ---
+            {
+                brand: 'エコQ電',
+                class: 'brand-qden',
+                name: 'トヨタカローラ福岡 本店',
+                ev: '90kW',
+                naviUrl: 'https://www.google.com/maps/dir/?api=1&destination=%E3%83%88%E3%83%A8%E3%82%BF%E3%82%AB%E3%83%AD%E3%83%BC%E3%83%A9%E7%A6%8F%E5%B2%A1+%E6%9C%AC%E5%BA%97&dirflg=t',
+                statusUrl: 'https://qden.enegate.jp/enegate/pc/pc/stand_seach_map.php?id=5000'
+            },
+            {
+                brand: 'エコQ電',
+                class: 'brand-qden',
+                name: 'メルセデス・ベンツ福岡東',
+                ev: '150kW',
+                naviUrl: 'https://www.google.com/maps/dir/?api=1&destination=%E3%83%A1%E3%83%AB%E3%82%BB%E3%83%87%E3%82%B9%E3%83%BB%E3%83%99%E3%83%B3%E3%83%84%E7%A6%8F%E5%B2%A1%E6%9D%B1&dirflg=t',
+                statusUrl: 'https://qden.enegate.jp/enegate/pc/pc/stand_seach_map.php?id=6287'
+            },
+            {
+                brand: 'エコQ電',
+                class: 'brand-qden',
+                name: '南体育館',
+                ev: '90kW',
+                naviUrl: 'https://www.google.com/maps/dir/?api=1&destination=%E7%A6%8F%E5%B2%A1%E5%B8%82%E7%AB%8B%E5%8D%97%E4%BD%93%E8%82%B2%E9%A4%A8&dirflg=t',
+                statusUrl: 'https://qden.enegate.jp/enegate/pc/pc/stand_seach_map.php?id=7236'
+            },
+            {
+                brand: 'エコQ電',
+                class: 'brand-qden',
+                name: 'クリーンパーク・臨海',
+                ev: '90kW',
+                naviUrl: 'https://www.google.com/maps/dir/?api=1&destination=%E3%82%AF%E3%83%AA%E3%83%BC%E3%83%B3%E3%83%A1%E3%83%BC%E3%83%84%E3%83%BB%E8%87%A8%E6%B5%B7&dirflg=t',
+                statusUrl: 'https://qden.enegate.jp/enegate/pc/pc/stand_seach_map.php?id=7243'
+            },
+            // --- システムパーク ---
+            {
+                brand: 'システムパーク',
+                class: 'brand-system',
+                name: 'システムパーク筥松2丁目',
+                ev: '3kW',
+                naviUrl: 'https://www.google.com/maps/dir/?api=1&destination=%E3%82%B7%E3%82%B9%E3%83%86%E3%83%A0%E3%83%91%E3%83%BC%E3%82%AF%E7%AE%95%E6%9D%BE2%E4%B8%81%E7%9B%AE&dirflg=t',
+                statusUrl: 'https://search.ipos-land.jp/p/detail.aspx?id=M29006140'
+            },
+            {
+                brand: 'システムパーク',
+                class: 'brand-system',
+                name: 'システムパーク箱崎3丁目',
+                ev: '3kW',
+                naviUrl: 'https://www.google.com/maps/dir/?api=1&destination=%E3%82%B7%E3%82%B9%E3%83%86%E3%83%A0%E3%83%91%E3%83%BC%E3%82%AF%E7%AE%B1%E5%B2%8A3%E4%B8%81%E7%9B%AE&dirflg=t',
+                statusUrl: 'https://search.ipos-land.jp/p/detail.aspx?id=M29006139'
+            },
+            {
+                brand: 'システムパーク',
+                class: 'brand-system',
+                name: 'システムパーク千早5丁目',
+                ev: '3kW',
+                naviUrl: 'https://www.google.com/maps/dir/?api=1&destination=%E3%82%B7%E3%82%B9%E3%83%86%E3%83%A0%E3%83%91%E3%83%BC%E3%82%AF%E5%8D%83%E6%97%A95%E4%B8%81%E7%9B%AE&dirflg=t',
+                statusUrl: 'https://search.ipos-land.jp/p/detail.aspx?id=M29006138'
+            },
+            // --- タイムズ ---
+            {
+                brand: 'タイムズ',
+                class: 'brand-times',
+                name: 'タイムズ福岡合同庁舎',
+                ev: '6kW',
+                naviUrl: 'https://www.google.com/maps/dir/?api=1&destination=%E3%82%BF%E3%82%A4%E3%83%A0%E3%82%BA%E7%A6%8F%E5%B2%A1%E5%90%88%E5%90%8C%E5%BA%81%E8%88%8A&dirflg=t',
+                statusUrl: 'https://times-info.net/P40-fukuoka/C132/park-detail-BUK0037087/'
+            },
+            {
+                brand: 'タイムズ',
+                class: 'brand-times',
+                name: 'タイムズ南区役所',
+                ev: '3kW',
+                naviUrl: 'https://www.google.com/maps/dir/?api=1&destination=%E3%82%BF%E3%82%A4%E3%83%A0%E3%82%BA%E5%8D%97%E5%8C%BA%E5%BD%B9%E6%89%A0&dirflg=t',
+                statusUrl: 'https://times-info.net/P40-fukuoka/C134/park-detail-BUK0033071/'
+            },
+            {
+                brand: 'タイムズ',
+                class: 'brand-times',
+                name: 'タイムズ西区役所',
+                ev: '6kW',
+                naviUrl: 'https://www.google.com/maps/dir/?api=1&destination=%E3%82%BF%E3%82%A4%E3%83%A0%E3%82%BA%E8%A5%BF%E5%8C%BA%E5%BD%B9%E6%89%A0&dirflg=t',
+                statusUrl: 'https://times-info.net/P40-fukuoka/C135/park-detail-BUK0033073/'
+            }
+        ];
+
+        function renderList() {
+            const listContainer = document.getElementById('parking-list');
+            listContainer.innerHTML = '';
+
+            let previousBrand = '';
+
+            parkingData.forEach(park => {
+                if (previousBrand === 'エコQ電' && park.brand !== 'エコQ電') {
+                    const divider = document.createElement('div');
+                    divider.className = 'section-divider';
+                    divider.innerText = 'コインパーキング（普通充電など）';
+                    listContainer.appendChild(divider);
+                }
+
+                const itemContainer = document.createElement('div');
+                itemContainer.className = 'parking-item';
+
+                const evBadge = park.ev ? `<span class="badge-ev">⚡ ${park.ev}</span>` : '';
+                const naviBadge = `<span class="badge-navi">🚗 下道ルート</span>`;
+
+                itemContainer.innerHTML = `
+                    <a href="${park.naviUrl}" target="_blank" class="navi-btn">
+                        <div class="parking-brand ${park.class}">${park.brand}</div>
+                        <div class="parking-name">${park.name}</div>
+                        <div class="badges">${evBadge}${naviBadge}</div>
+                    </a>
+                    <a href="${park.statusUrl}" target="_blank" class="status-btn">
+                        <span class="status-icon">🔍</span>
+                        <span>状況確認</span>
+                    </a>
+                `;
+                
+                listContainer.appendChild(itemContainer);
+                previousBrand = park.brand;
+            });
+        }
+
+        window.onload = renderList;
+    </script>
+</body>
+</html>
