@@ -3,41 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚡ EV充電コスト計算機</title>
+    <title>⚡ EV充電計算</title>
     <style>
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 20px; max-width: 500px; margin: auto; background-color: #f9f9f9; }
-        h2 { text-align: center; color: #333; }
-        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .input-group { margin-bottom: 15px; }
-        label { display: block; font-weight: bold; margin-bottom: 8px; color: #555; }
-        input { width: 100%; padding: 12px; box-sizing: border-box; font-size: 18px; border: 2px solid #eee; border-radius: 10px; }
-        .presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; }
-        button { padding: 10px; border: none; background: #e0e0e0; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        body { font-family: sans-serif; padding: 10px; max-width: 500px; margin: auto; background-color: #f9f9f9; }
+        h2 { text-align: center; font-size: 1.2em; margin: 10px 0; }
+        .card { background: white; padding: 10px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 10px; }
+        .input-group { display: flex; align-items: center; margin-bottom: 8px; }
+        label { flex: 0 0 40%; font-size: 0.85em; font-weight: bold; }
+        input { flex: 1; padding: 8px; font-size: 1em; border: 1px solid #ccc; border-radius: 5px; }
+        .presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 10px; }
+        button { padding: 6px 0; border: none; background: #eee; border-radius: 5px; cursor: pointer; font-size: 0.8em; }
         button:hover { background: #007bff; color: white; }
-        #result { text-align: center; font-size: 2em; font-weight: bold; color: #007bff; margin: 20px 0; }
-        table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; }
-        th { background: #007bff; color: white; padding: 12px; }
-        td { padding: 12px; border-bottom: 1px solid #eee; text-align: center; }
+        #result { text-align: center; font-size: 1.5em; font-weight: bold; color: #007bff; margin: 5px 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        th { background: #007bff; color: white; padding: 6px; }
+        td { padding: 6px; border-bottom: 1px solid #ddd; text-align: center; }
     </style>
 </head>
 <body>
 
-    <h2>⚡ EV充電コスト計算機</h2>
+    <h2>⚡ 充電費用計算(/kW)</h2>
     
     <div class="card">
+        <div class="presets" id="speedPresets"></div>
         <div class="input-group">
-            <label>🔋 充電速度 (kW/hr)</label>
-            <div class="presets" id="speedPresets"></div>
+            <label>速度(kW)</label>
             <input type="number" id="speed" oninput="saveAndCalculate('speed')">
         </div>
-        
         <div class="input-group">
-            <label>💰 30分あたりの料金 (円)</label>
+            <label>30分料金(円)</label>
             <input type="number" id="pricePer30Min" oninput="syncAndCalculate('30min')">
         </div>
-
         <div class="input-group">
-            <label>⏱️ 1分あたりの料金 (円)</label>
+            <label>1分料金(円)</label>
             <input type="number" id="pricePerMin" oninput="syncAndCalculate('1min')">
         </div>
     </div>
@@ -66,7 +64,7 @@
             const container = document.getElementById('speedPresets');
             [30, 50, 90, 100, 150].forEach(val => {
                 const btn = document.createElement('button');
-                btn.innerText = val + 'kW';
+                btn.innerText = val;
                 btn.onclick = () => { speedInput.value = val; saveAndCalculate(); };
                 container.appendChild(btn);
             });
@@ -93,16 +91,14 @@
             if (isNaN(speed) || isNaN(pricePerMin) || speed === 0) return;
 
             const effectiveSpeed = (speed <= 100) ? (speed * 0.9) : 90;
-            const yenPerKw = pricePerMin / (effectiveSpeed / 60);
-            
-            document.getElementById('result').innerText = `${yenPerKw.toFixed(1)} 円/kW`;
+            document.getElementById('result').innerText = `${(pricePerMin / (effectiveSpeed / 60)).toFixed(1)} 円/kW`;
 
             const tbody = document.getElementById('tbody');
             tbody.innerHTML = '';
             [10, 15, 20, 30].forEach(min => {
                 const kw = (effectiveSpeed / 60) * min;
                 const cost = min * pricePerMin;
-                tbody.innerHTML += `<tr><td>${min}分</td><td>${kw.toFixed(1)} kW</td><td>${Math.round(cost)} 円</td></tr>`;
+                tbody.innerHTML += `<tr><td>${min}分</td><td>${kw.toFixed(1)}kW</td><td>${Math.round(cost)}円</td></tr>`;
             });
         }
     </script>
