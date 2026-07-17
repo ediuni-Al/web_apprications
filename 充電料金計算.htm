@@ -3,63 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚡ 充電料金計算(/kW)</title>
+    <title>⚡ EV充電計算</title>
     <style>
-        /* 全体のベース設定 */
+        :root {
+            --primary: #2563eb;
+            --bg: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-main: #1f2937;
+            --text-sub: #6b7280;
+        }
         body { 
-            font-family: sans-serif; 
-            padding: 10px; 
-            margin: 0; 
-            background-color: #f0f2f5; 
-            display: flex; 
-            justify-content: center; /* PCで見た時に中央寄せ */
-            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            padding: 15px; margin: 0; background-color: var(--bg); color: var(--text-main);
+            display: flex; justify-content: center; min-height: 100vh;
         }
+        .container { width: 100%; max-width: 500px; }
+        h2 { text-align: center; font-size: 1.2em; color: var(--text-main); margin-bottom: 20px; }
+        .card { background: var(--card-bg); padding: 16px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        .input-group { display: flex; align-items: center; margin-bottom: 12px; }
+        label { flex: 0 0 45%; font-size: 0.85em; font-weight: 600; color: var(--text-sub); }
+        input { flex: 1; padding: 8px; font-size: 1em; border: 1px solid #d1d5db; border-radius: 6px; outline: none; }
+        input:focus { border-color: var(--primary); ring: 2px solid #bfdbfe; }
         
-        /* コンテンツの幅を制限してスマホ風に固定 */
-        .container {
-            width: 100%;
-            max-width: 500px;
-            background-color: #f9f9f9;
-        }
-
-        h2 { text-align: center; font-size: 1.1em; margin: 10px 0; }
-        .card { background: white; padding: 10px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 10px; }
-        .input-group { display: flex; align-items: center; margin-bottom: 8px; }
-        label { flex: 0 0 45%; font-size: 0.8em; font-weight: bold; }
-        input { flex: 1; padding: 6px; font-size: 1em; border: 1px solid #ccc; border-radius: 4px; }
-        .presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 5px; }
-        button { padding: 4px 0; border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; font-size: 0.75em; }
-        button:hover { background: #007bff; color: white; }
-        #result { text-align: center; font-size: 1.4em; font-weight: bold; color: #007bff; margin: 10px 0; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.85em; background: white; }
-        th { background: #eee; padding: 6px; border: 1px solid #ddd; }
-        td { padding: 6px; border: 1px solid #ddd; text-align: center; }
+        .presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 10px; }
+        button { padding: 6px 0; border: none; background: #e5e7eb; border-radius: 6px; cursor: pointer; font-size: 0.8em; font-weight: 600; color: #374151; }
+        button:hover { background: var(--primary); color: white; }
+        
+        #result { text-align: center; font-size: 1.8em; font-weight: 800; color: var(--primary); margin: 20px 0; }
+        
+        table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--card-bg); border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        th { background: #f9fafb; color: var(--text-sub); padding: 10px; font-size: 0.85em; border-bottom: 1px solid #e5e7eb; }
+        td { padding: 12px; border-bottom: 1px solid #f3f4f6; text-align: center; font-weight: 500; }
+        tr:last-child td { border-bottom: none; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h2>⚡ 充電料金計算(/kW)</h2>
+        <h2>⚡ EV充電計算シミュレーター</h2>
         
         <div class="card">
             <div class="input-group">
-                <label>速度 (kW)</label>
+                <label>充電速度 (kW)</label>
                 <input type="number" id="speed" oninput="saveAndCalculate('speed')">
             </div>
             <div class="presets" id="speedPresets"></div>
         </div>
 
         <div class="card">
-<div class="input-group">
-                <label>1分料金 (円)</label>
-                <input type="number" id="pricePerMin" oninput="syncAndCalculate('1min')">
-            </div>
             <div class="input-group">
                 <label>30分料金 (円)</label>
                 <input type="number" id="pricePer30Min" oninput="syncAndCalculate('30min')">
             </div>
-            
+            <div class="input-group">
+                <label>1分料金 (円)</label>
+                <input type="number" id="pricePerMin" oninput="syncAndCalculate('1min')">
+            </div>
         </div>
 
         <div id="result">-- 円/kW</div>
