@@ -3,49 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚡ EV充電計算</title>
+    <title>⚡ 充電料金計算(/kW)</title>
     <style>
-        body { font-family: sans-serif; padding: 10px; max-width: 500px; margin: auto; background-color: #f9f9f9; }
-        h2 { text-align: center; font-size: 1.2em; margin: 10px 0; }
-        .card { background: white; padding: 10px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 10px; }
+        /* 全体のベース設定 */
+        body { 
+            font-family: sans-serif; 
+            padding: 10px; 
+            margin: 0; 
+            background-color: #f0f2f5; 
+            display: flex; 
+            justify-content: center; /* PCで見た時に中央寄せ */
+            min-height: 100vh;
+        }
+        
+        /* コンテンツの幅を制限してスマホ風に固定 */
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background-color: #f9f9f9;
+        }
+
+        h2 { text-align: center; font-size: 1.1em; margin: 10px 0; }
+        .card { background: white; padding: 10px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 10px; }
         .input-group { display: flex; align-items: center; margin-bottom: 8px; }
-        label { flex: 0 0 40%; font-size: 0.85em; font-weight: bold; }
-        input { flex: 1; padding: 8px; font-size: 1em; border: 1px solid #ccc; border-radius: 5px; }
-        .presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 10px; }
-        button { padding: 6px 0; border: none; background: #eee; border-radius: 5px; cursor: pointer; font-size: 0.8em; }
+        label { flex: 0 0 45%; font-size: 0.8em; font-weight: bold; }
+        input { flex: 1; padding: 6px; font-size: 1em; border: 1px solid #ccc; border-radius: 4px; }
+        .presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 5px; }
+        button { padding: 4px 0; border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; font-size: 0.75em; }
         button:hover { background: #007bff; color: white; }
-        #result { text-align: center; font-size: 1.5em; font-weight: bold; color: #007bff; margin: 5px 0; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
-        th { background: #007bff; color: white; padding: 6px; }
-        td { padding: 6px; border-bottom: 1px solid #ddd; text-align: center; }
+        #result { text-align: center; font-size: 1.4em; font-weight: bold; color: #007bff; margin: 10px 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85em; background: white; }
+        th { background: #eee; padding: 6px; border: 1px solid #ddd; }
+        td { padding: 6px; border: 1px solid #ddd; text-align: center; }
     </style>
 </head>
 <body>
 
-    <h2>⚡ 充電費用計算(/kW)</h2>
-    
-    <div class="card">
-        <div class="presets" id="speedPresets"></div>
-        <div class="input-group">
-            <label>速度(kW)</label>
-            <input type="number" id="speed" oninput="saveAndCalculate('speed')">
+    <div class="container">
+        <h2>⚡ 充電料金計算(/kW)</h2>
+        
+        <div class="card">
+            <div class="input-group">
+                <label>速度 (kW)</label>
+                <input type="number" id="speed" oninput="saveAndCalculate('speed')">
+            </div>
+            <div class="presets" id="speedPresets"></div>
         </div>
-        <div class="input-group">
-            <label>30分料金(円)</label>
-            <input type="number" id="pricePer30Min" oninput="syncAndCalculate('30min')">
+
+        <div class="card">
+            <div class="input-group">
+                <label>30分料金 (円)</label>
+                <input type="number" id="pricePer30Min" oninput="syncAndCalculate('30min')">
+            </div>
+            <div class="input-group">
+                <label>1分料金 (円)</label>
+                <input type="number" id="pricePerMin" oninput="syncAndCalculate('1min')">
+            </div>
         </div>
-        <div class="input-group">
-            <label>1分料金(円)</label>
-            <input type="number" id="pricePerMin" oninput="syncAndCalculate('1min')">
-        </div>
+
+        <div id="result">-- 円/kW</div>
+
+        <table>
+            <thead><tr><th>時間</th><th>充電量</th><th>費用</th></tr></thead>
+            <tbody id="tbody"></tbody>
+        </table>
     </div>
-
-    <div id="result">-- 円/kW</div>
-
-    <table>
-        <thead><tr><th>時間</th><th>充電量</th><th>費用</th></tr></thead>
-        <tbody id="tbody"></tbody>
-    </table>
 
     <script>
         const speedInput = document.getElementById('speed');
