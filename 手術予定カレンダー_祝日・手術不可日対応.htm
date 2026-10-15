@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>手術予定台帳システム (Surgery Schedule)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- FullCalendar CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+    <!-- FullCalendar JS -->
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/locales/ja.global.min.js"></script>
+    <!-- Alpine.js for UI state -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* カスタムスクロールバー */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* カレンダーイベントスタイル */
+        .fc-event {
+            cursor: pointer;
+            border-radius: 6px;
+            padding: 3px 6px;
+            font-size: 0.8rem;
+            border: none !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            transition: all 0.15s ease;
+        }
+        .fc-event:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.12);
+            filter: brightness(0.97);
+        }
+        
+        /* 週末（土日）の背景色 */
+        .fc-day-sat, .fc-day-sun {
+            background-color: #f8fafc;
+        }
+        
+        /* 祝日の日付セル背景 */
+        .holiday-cell {
+            background-color: #fff1f2 !important;
+        }
+        .holiday-cell .fc-daygrid-day-number {
+            color: #e11d48 !important;
+            font-weight: bold;
+        }
+        .holiday-label {
+            display: block;
+            width: 100%;
+            font-size: 10px;
+            font-weight: bold;
+            color: #9f1239;
+            background: #ffe4e6;
+            border-top: 1px solid #fecdd3;
+            border-bottom: 1px solid #fecdd3;
+            padding: 2px 4px;
+            margin-top: 2px;
+            text-align: left;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            box-sizing: border-box;
+        }
+
+        /* 手術不可日の日付セル背景 */
+        .unavailable-cell { 
+            background-color: #fce7f3 !important; 
+        }
+        .unavailable-cell .fc-daygrid-day-number { 
+            color: #be185d !important; 
+            font-weight: bold; 
+        }
+        .unavailable-label { 
+            display: block; 
+            width: 100%;
+            font-size: 10px; 
+            font-weight: bold;
+            color: #831843; 
+            background: #fbcfe8; 
+            border-top: 1px solid #f472b6;
+            border-bottom: 1px solid #f472b6;
+            padding: 2px 4px; 
+            margin-top: 2px;
+            text-align: left; 
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            box-sizing: border-box;
+        }
+        
+        /* 印刷スタイル */
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; color: black; height: auto; overflow: visible; }
+            main { overflow: visible !important; }
+            .print-area { display: block !important; }
+            .fc-header-toolbar { display: none !important; }
+            @page { size: A4 landscape; margin: 10mm; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex flex-col overflow-hidden" x-data="surgeryApp()" x-init="init()">
+
+    <!-- 画面上部ヘッダー（非印刷） -->
+    <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between shadow-xs z-20 shrink-0 no-print">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-200">
+                <i class="fa-solid fa-hospital-user text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-slate-900 text-lg leading-tight">手術予定台帳ダッシュボード</h1>
+                <p class="text-xs text-slate-500">院内オフライン運用版 (月〜金表示 / 10分刻み・9〜19時設定対応)</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <!-- 月〜金 / 土日表示の切替スイッチ -->
+            <button @click="toggleWeekends()" class="px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 flex items-center space-x-1.5 transition">
+                <i class="fa-solid" :class="hideWeekends ? 'fa-eye-slash text-amber-500' : 'fa-eye text-blue-500'"></i>
+                <span x-text="hideWeekends ? '月〜金のみ表示中' : '土日も表示中'"></span>
+            </button>
+
+            <!-- ビュー切り替え -->
+            <div class="bg-slate-100 p-1 rounded-xl flex space-x-1 border border-slate-200 text-sm">
+                <button @click="currentView = 'calendar'; $nextTick(() => calendar.render())" :class="currentView === 'calendar' ? 'bg-white text-blue-600 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900'" class="px-4 py-1.5 rounded-lg transition">
+                    <i class="fa-regular fa-calendar-days mr-1.5"></i> カレンダー
+                </button>
+                <button @click="currentView = 'list'" :class="currentView === 'list' ? 'bg-white text-blue-600 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900'" class="px-4 py-1.5 rounded-lg transition">
+                    <i class="fa-solid fa-list-ul mr-1.5"></i> 一覧・並べ替え
+                </button>
+            </div>
+
+            <button @click="openUnavailableModal()" class="bg-pink-100 hover:bg-pink-200 text-pink-800 font-medium px-3 py-2 rounded-xl border border-pink-200 flex items-center space-x-2 transition text-sm">
+                <i class="fa-solid fa-ban"></i><span>手術不可日設定</span>
+            </button>
+            <button @click="openModal('add')" class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-xl shadow-md shadow-blue-100 flex items-center space-x-2 transition text-sm">
+                <i class="fa-solid fa-plus"></i>
+                <span>新規手術登録</span>
+            </button>
+
+            <button onclick="window.print()" class="bg-white hover:bg-slate-50 text-slate-700 font-medium px-3.5 py-2 rounded-xl border border-slate-200 shadow-xs flex items-center space-x-1.5 transition text-sm" title="印刷 / A4予定表出力">
+                <i class="fa-solid fa-print"></i>
+                <span class="hidden md:inline">印刷</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- メインコンテンツエリア -->
+    <main class="flex-1 overflow-hidden relative flex flex-col">
+
+        <!-- カレンダービュー -->
+        <div x-show="currentView === 'calendar'" class="flex-1 flex flex-col p-6 overflow-hidden">
+            <!-- ツールバーコントロール -->
+            <div class="flex items-center justify-between mb-4 no-print shrink-0 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+                <div class="flex items-center space-x-3">
+                    <button @click="calendar.today()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-medium text-xs rounded-lg text-slate-700 transition">今日</button>
+                    <div class="flex items-center space-x-1">
+                        <button @click="calendar.prev()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-600 transition"><i class="fa-solid fa-chevron-left"></i></button>
+                        <button @click="calendar.next()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-600 transition"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                    <h2 class="text-base font-bold text-slate-800" x-text="calendarTitle"></h2>
+                </div>
+
+                <!-- ドラッグ＆ドロップ複製ガイド＆凡例 -->
+                <div class="flex items-center space-x-6 text-xs font-medium">
+                    <div class="text-slate-500 bg-slate-50 px-3 py-1 rounded-lg border border-slate-200">
+                        <i class="fa-regular fa-keyboard text-blue-500 mr-1"></i> <kbd class="px-1 py-0.5 bg-white border border-slate-300 rounded font-sans text-[10px]">Alt</kbd> キーを押しながらドラッグで複製（コピー）
+                    </div>
+
+                    <div class="flex items-center space-x-3">
+                        <div class="flex items-center space-x-1.5"><span class="w-3 h-3 rounded-full bg-red-500 inline-block"></span><span class="text-slate-600">難易度 ★4〜5</span></div>
+                        <div class="flex items-center space-x-1.5"><span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span><span class="text-slate-600">難易度 ★3</span></div>
+                        <div class="flex items-center space-x-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span><span class="text-slate-600">難易度 ★1〜2</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- カレンダー本体容器 -->
+            <div class="flex-1 bg-white rounded-2xl border border-slate-200 shadow-xs p-4 overflow-hidden flex flex-col">
+                <div id="calendar" class="flex-1"></div>
+            </div>
+        </div>
+
+        <!-- 一覧・並べ替え・絞り込みビュー -->
+        <div x-show="currentView === 'list'" class="flex-1 p-6 overflow-y-auto" style="display: none;">
+            <div class="max-w-7xl mx-auto space-y-4">
+                <!-- 検索・フィルターバー -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-4">
+                    <div class="flex items-center space-x-3 flex-1 min-w-[280px]">
+                        <div class="relative flex-1">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><i class="fa-solid fa-search"></i></span>
+                            <input type="text" x-model="searchQuery" placeholder="患者名、ID、術式、備考で検索..." class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center space-x-3">
+                        <select x-model="filterEye" class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                            <option value="">すべての術眼</option>
+                            <option value="右">右眼</option>
+                            <option value="左">左眼</option>
+                            <option value="両眼">両眼</option>
+                        </select>
+                        <select x-model="filterDifficulty" class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                            <option value="">すべての難易度</option>
+                            <option value="5">★5</option>
+                            <option value="4">★4</option>
+                            <option value="3">★3</option>
+                            <option value="2">★2</option>
+                            <option value="1">★1</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 手術一覧テーブル -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                                <th @click="sortList('date')" class="py-3 px-4 cursor-pointer hover:bg-slate-100 transition">日付 <i class="fa-solid fa-sort ml-1 text-slate-400"></i></th>
+                                <th @click="sortList('time')" class="py-3 px-4 cursor-pointer hover:bg-slate-100 transition">時間 <i class="fa-solid fa-sort ml-1 text-slate-400"></i></th>
+                                <th @click="sortList('duration')" class="py-3 px-4 cursor-pointer hover:bg-slate-100 transition">予定時間 <i class="fa-solid fa-sort ml-1 text-slate-400"></i></th>
+                                <th @click="sortList('patientId')" class="py-3 px-4 cursor-pointer hover:bg-slate-100 transition">患者ID <i class="fa-solid fa-sort ml-1 text-slate-400"></i></th>
+                                <th @click="sortList('patientName')" class="py-3 px-4 cursor-pointer hover:bg-slate-100 transition">患者名 <i class="fa-solid fa-sort ml-1 text-slate-400"></i></th>
+                                <th class="py-3 px-4">術眼</th>
+                                <th class="py-3 px-4">術式</th>
+                                <th @click="sortList('difficulty')" class="py-3 px-4 cursor-pointer hover:bg-slate-100 transition">難易度 <i class="fa-solid fa-sort ml-1 text-slate-400"></i></th>
+                                <th class="py-3 px-4">備考</th>
+                                <th class="py-3 px-4 text-right">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 text-sm">
+                            <template x-for="item in filteredSurgeries" :key="item.id">
+                                <tr class="hover:bg-slate-50/80 transition">
+                                    <td class="py-3.5 px-4 font-medium text-slate-900" x-text="item.date"></td>
+                                    <td class="py-3.5 px-4 text-slate-600 font-mono text-xs" x-text="item.time || '-'"></td>
+                                    <td class="py-3.5 px-4 text-slate-600"><span x-text="item.duration"></span> 分</td>
+                                    <td class="py-3.5 px-4 text-slate-600 font-mono text-xs" x-text="item.patientId"></td>
+                                    <td class="py-3.5 px-4 font-semibold text-slate-800" x-text="item.patientName"></td>
+                                    <td class="py-3.5 px-4">
+                                        <span class="px-2.5 py-1 rounded-lg text-xs font-medium"
+                                              :class="{
+                                                'bg-blue-50 text-blue-700 border border-blue-200': item.eye === '右',
+                                                'bg-purple-50 text-purple-700 border border-purple-200': item.eye === '左',
+                                                'bg-teal-50 text-teal-700 border border-teal-200': item.eye === '両眼'
+                                              }" x-text="item.eye"></span>
+                                    </td>
+                                    <td class="py-3.5 px-4 text-slate-700 font-medium" x-text="item.content"></td>
+                                    <td class="py-3.5 px-4">
+                                        <span class="text-amber-500 font-semibold text-xs tracking-widest" x-text="'★'.repeat(item.difficulty) + '☆'.repeat(5 - item.difficulty)"></span>
+                                    </td>
+                                    <td class="py-3.5 px-4 text-slate-500 text-xs truncate max-w-[150px]" x-text="item.memo || '-'"></td>
+                                    <td class="py-3.5 px-4 text-right space-x-1">
+                                        <button @click="duplicateSurgery(item)" class="text-slate-400 hover:text-emerald-600 transition p-1.5" title="複製"><i class="fa-regular fa-copy"></i></button>
+                                        <button @click="editSurgery(item)" class="text-slate-400 hover:text-blue-600 transition p-1.5" title="編集"><i class="fa-solid fa-pen-to-square"></i></button>
+                                        <button @click="deleteSurgery(item.id)" class="text-slate-400 hover:text-red-600 transition p-1.5" title="削除"><i class="fa-solid fa-trash-can"></i></button>
+                                    </td>
+                                </tr>
+                            </template>
+                            <template x-if="filteredSurgeries.length === 0">
+                                <tr>
+                                    <td colspan="10" class="text-center py-12 text-slate-400">該当する手術予定は見つかりません。</td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- モーダルダイアログ（新規登録/編集/複製） -->
+    <div x-show="isModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4" style="display: none;" x-transition.opacity>
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col" @click.outside="closeModal()">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <h3 class="font-bold text-slate-800 text-base" x-text="modalMode === 'add' ? '新規手術予定の登録' : (modalMode === 'copy' ? '手術予定の複製' : '手術予定の編集')"></h3>
+                <button @click="closeModal()" class="w-8 h-8 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <form @submit.prevent="saveSurgery()" class="p-6 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">患者ID</label>
+                        <input type="text" x-model="form.patientId" required placeholder="例: 1004829" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">患者氏名</label>
+                        <input type="text" x-model="form.patientName" required placeholder="例: 山田 太郎" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">手術日付</label>
+                        <input type="date" x-model="form.date" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">開始時間 (任意)</label>
+                        <select x-model="form.time" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+                            <option value="">未設定 (順序調整中)</option>
+                            <template x-for="t in timeSlots" :key="t">
+                                <option :value="t" x-text="t"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">予定時間</label>
+                        <select x-model.number="form.duration" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+                            <template x-for="d in durationSlots" :key="d">
+                                <option :value="d" x-text="d + ' 分'"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">術眼</label>
+                        <select x-model="form.eye" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+                            <option value="右">右眼 (OD)</option>
+                            <option value="左">左眼 (OS)</option>
+                            <option value="両眼">両眼 (OU)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">難易度</label>
+                        <select x-model.number="form.difficulty" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+                            <option value="1">★1 (非常に標準的)</option>
+                            <option value="2">★2 (標準)</option>
+                            <option value="3">★3 (やや難易度高)</option>
+                            <option value="4">★4 (高難易度)</option>
+                            <option value="5">★5 (極めて複雑・慎重)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">術式</label>
+                    <div class="space-y-2">
+                        <select x-model="form.content" @change="if($event.target.value) form.content = $event.target.value" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+                            <option value="">-- プリセットから選択 または 下部に直接入力 --</option>
+                            <option value="PEA+IOL">PEA+IOL</option>
+                            <option value="PPV">PPV</option>
+                            <option value="PEA+IOL/PPV">PEA+IOL/PPV</option>
+                            <option value="翼状片手術">翼状片手術</option>
+                        </select>
+                        <input type="text" x-model="form.content" required placeholder="直接入力・編集も可能 (例: 涙道チューブ挿入術)" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">備考</label>
+                    <textarea x-model="form.memo" rows="2" placeholder="使用レンズ、感染症注意、特殊機器など..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"></textarea>
+                </div>
+
+                <div class="pt-4 flex items-center justify-end space-x-3 border-t border-slate-100">
+                    <button type="button" @click="closeModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-sm transition">キャンセル</button>
+                    <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl text-sm shadow-md shadow-blue-100 transition">保存する</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 手術不可日設定モーダル -->
+    <div x-show="isUnavailableModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" style="display:none;" x-transition.opacity>
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden" @click.outside="isUnavailableModalOpen = false">
+            <div class="px-6 py-4 border-b border-slate-100 bg-pink-50 flex items-center justify-between">
+                <h3 class="font-bold text-pink-900">手術不可日の設定</h3>
+                <button @click="isUnavailableModalOpen = false" class="w-8 h-8 rounded-full hover:bg-pink-100 text-slate-500"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-6 space-y-4">
+                <p class="text-sm text-slate-600">日付を選び、必要なら理由を入力してください。設定した日はカレンダーの日付枠がピンク色になります。</p>
+                <form @submit.prevent="addUnavailableDate()" class="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2">
+                    <input type="date" x-model="unavailableForm.date" required class="border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                    <input type="text" x-model="unavailableForm.reason" placeholder="理由（任意：学会、休診など）" class="border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                    <button type="submit" class="bg-pink-600 hover:bg-pink-700 text-white rounded-lg px-4 py-2 text-sm font-semibold">設定</button>
+                </form>
+                <div class="border border-slate-200 rounded-xl overflow-hidden">
+                    <template x-if="unavailableDates.length === 0"><p class="p-4 text-sm text-slate-400">設定された手術不可日はありません。</p></template>
+                    <template x-for="item in unavailableDates.slice().sort((a,b) => a.date.localeCompare(b.date))" :key="item.date">
+                        <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-100 last:border-0">
+                            <div><span class="font-semibold text-sm" x-text="item.date"></span><span class="ml-2 text-xs text-pink-700" x-text="item.reason || '手術不可'"></span></div>
+                            <button @click="removeUnavailableDate(item.date)" class="text-red-500 hover:text-red-700 text-sm" title="削除"><i class="fa-solid fa-trash-can"></i> 削除</button>
+                        </div>
+                    </template>
+                </div>
+                <div class="flex justify-end"><button @click="isUnavailableModalOpen = false" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm">閉じる</button></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- トースト通知メッセージ -->
+    <div x-show="toast.show" x-transition class="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center space-x-3 text-sm">
+        <i class="fa-solid fa-circle-check text-emerald-400"></i>
+        <span x-text="toast.message"></span>
+    </div>
+
+    <!-- JavaScript ロジック部 -->
+    <script>
+        // --- 日本の祝日判定用正確な計算・振替休日・国民の休日ロジック ---
+        function getJapaneseHolidays(year) {
+            const holidays = {};
+
+            const addHoliday = (dateStr, name) => {
+                holidays[dateStr] = name;
+            };
+
+            // 1. 固定祝日
+            addHoliday(`${year}-01-01`, '元日');
+            addHoliday(`${year}-02-11`, '建国記念の日');
+            addHoliday(`${year}-02-23`, '天皇誕生日');
+            addHoliday(`${year}-04-29`, '昭和の日');
+            addHoliday(`${year}-05-03`, '憲法記念日');
+            addHoliday(`${year}-05-04`, 'みどりの日');
+            addHoliday(`${year}-05-05`, 'こどもの日');
+            addHoliday(`${year}-08-11`, '山の日');
+            addHoliday(`${year}-11-03`, '文化の日');
+            addHoliday(`${year}-11-23`, '勤労感謝の日');
+
+            // 2. ハッピーマンデー (第N月曜日)
+            const getNthMonday = (y, month, n) => {
+                let firstDay = new Date(y, month - 1, 1);
+                let dayOfWeek = firstDay.getDay();
+                let offset = (1 - dayOfWeek + 7) % 7;
+                let day = 1 + offset + (n - 1) * 7;
+                return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            };
+
+            addHoliday(getNthMonday(year, 1, 2), '成人の日');
+            addHoliday(getNthMonday(year, 7, 3), '海の日');
+            addHoliday(getNthMonday(year, 9, 3), '敬老の日');
+            addHoliday(getNthMonday(year, 10, 2), 'スポーツの日');
+
+            // 3. 春分の日・秋分の日の天文計算式 (1980〜2099年対応)
+            const shunbunDay = Math.floor(20.8431 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+            const shubonDay = Math.floor(23.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+            addHoliday(`${year}-03-${String(shunbunDay).padStart(2, '0')}`, '春分の日');
+            addHoliday(`${year}-09-${String(shubonDay).padStart(2, '0')}`, '秋分の日');
+
+            // 4. 振替休日 (日曜日の祝日の場合、翌日以降の最初の祝日でない日)
+            const holidayDates = Object.keys(holidays).sort();
+            const substituted = {};
+            holidayDates.forEach(dateStr => {
+                let d = new Date(dateStr);
+                if (d.getDay() === 0) {
+                    let checkDate = new Date(d);
+                    checkDate.setDate(checkDate.getDate() + 1);
+                    while (true) {
+                        let cStr = checkDate.toISOString().split('T')[0];
+                        if (!holidays[cStr] && !substituted[cStr]) {
+                            substituted[cStr] = '振替休日';
+                            break;
+                        }
+                        checkDate.setDate(checkDate.getDate() + 1);
+                    }
+                }
+            });
+            Object.assign(holidays, substituted);
+
+            // 5. 国民の休日 (祝日に挟まれた平日)
+            let allDates = Object.keys(holidays).sort();
+            for (let i = 0; i < allDates.length - 1; i++) {
+                let d1 = new Date(allDates[i]);
+                let d2 = new Date(allDates[i+1]);
+                let diffTime = d2 - d1;
+                let diffDays = diffTime / (1000 * 60 * 60 * 24);
+                if (diffDays === 2) {
+                    let midDate = new Date(d1);
+                    midDate.setDate(midDate.getDate() + 1);
+                    let midStr = midDate.toISOString().split('T')[0];
+                    if (!holidays[midStr]) {
+                        holidays[midStr] = '国民の休日';
+                    }
+                }
+            }
+
+            return holidays;
+        }
+
+        // --- アルパインアプリ本体 ---
+        function surgeryApp() {
+            return {
+                currentView: 'calendar',
+                calendar: null,
+                calendarTitle: '',
+                hideWeekends: true,
+                isModalOpen: false,
+                isUnavailableModalOpen: false,
+                unavailableDates: [],
+                unavailableForm: { date: '', reason: '' },
+                modalMode: 'add',
+                searchQuery: '',
+                filterEye: '',
+                filterDifficulty: '',
+                sortField: 'date',
+                sortAsc: true,
+                toast: { show: false, message: '' },
+                isAltPressed: false,
+
+                // 9時〜19時の10分刻みの時間スロット生成
+                get timeSlots() {
+                    let slots = [];
+                    for (let h = 9; h <= 19; h++) {
+                        for (let m = 0; m < 60; m += 10) {
+                            if (h === 19 && m > 0) break; // 19:00まで
+                            slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+                        }
+                    }
+                    return slots;
+                },
+
+                // 所要時間の選択肢（10分〜120分）
+                get durationSlots() {
+                    let slots = [];
+                    for (let d = 10; d <= 120; d += 10) {
+                        slots.push(d);
+                    }
+                    return slots;
+                },
+                
+                form: {
+                    id: null,
+                    patientId: '',
+                    patientName: '',
+                    date: '',
+                    time: '',
+                    duration: 30,
+                    eye: '右',
+                    content: 'PEA+IOL',
+                    difficulty: 2,
+                    memo: ''
+                },
+
+                surgeries: [
+                    { id: '1', patientId: 'ID-00124', patientName: '佐藤 健一', date: '2026-10-19', time: '09:00', duration: 30, eye: '右', content: 'PEA+IOL', difficulty: 1, memo: '局所麻酔、単焦点IOL' },
+                    { id: '2', patientId: 'ID-00125', patientName: '鈴木 美代子', date: '2026-10-19', time: '10:30', duration: 45, eye: '左', content: 'PPV', difficulty: 3, memo: '小瞳孔注意' },
+                    { id: '3', patientId: 'ID-00130', patientName: '高橋 秀雄', date: '2026-10-21', time: '', duration: 60, eye: '両眼', content: 'PEA+IOL/PPV', difficulty: 4, memo: '時間未設定（順序調整中）' },
+                    { id: '4', patientId: 'ID-00142', patientName: '田中 静子', date: '2026-10-23', time: '11:00', duration: 30, eye: '右', content: '翼状片手術', difficulty: 2, memo: '' }
+                ],
+
+                init() {
+                    window.addEventListener('keydown', (e) => { if (e.key === 'Alt') this.isAltPressed = true; });
+                    window.addEventListener('keyup', (e) => { if (e.key === 'Alt') this.isAltPressed = false; });
+
+                    const saved = localStorage.getItem('surgery_schedule_data_v5');
+                    if (saved) {
+                        try { this.surgeries = JSON.parse(saved); } catch (e) {}
+                    }
+                    const savedUnavailable = localStorage.getItem('surgery_schedule_unavailable_v1');
+                    if (savedUnavailable) {
+                        try { this.unavailableDates = JSON.parse(savedUnavailable); } catch (e) { this.unavailableDates = []; }
+                    }
+
+                    this.$nextTick(() => {
+                        this.initCalendar();
+                    });
+                },
+
+                saveToStorage() {
+                    localStorage.setItem('surgery_schedule_data_v5', JSON.stringify(this.surgeries));
+                },
+
+                saveUnavailableToStorage() {
+                    localStorage.setItem('surgery_schedule_unavailable_v1', JSON.stringify(this.unavailableDates));
+                },
+
+                openUnavailableModal() {
+                    this.unavailableForm = { date: new Date().toLocaleDateString('sv-SE'), reason: '' };
+                    this.isUnavailableModalOpen = true;
+                },
+
+                addUnavailableDate() {
+                    const date = this.unavailableForm.date;
+                    if (!date) return;
+                    const reason = this.unavailableForm.reason.trim();
+                    const existing = this.unavailableDates.findIndex(item => item.date === date);
+                    const item = { date, reason };
+                    if (existing >= 0) this.unavailableDates.splice(existing, 1, item);
+                    else this.unavailableDates.push(item);
+                    this.saveUnavailableToStorage();
+                    this.refreshCalendarDays();
+                    this.unavailableForm = { date: new Date().toLocaleDateString('sv-SE'), reason: '' };
+                    this.showToast(date + ' を手術不可日に設定しました');
+                },
+
+                removeUnavailableDate(date) {
+                    this.unavailableDates = this.unavailableDates.filter(item => item.date !== date);
+                    this.saveUnavailableToStorage();
+                    this.refreshCalendarDays();
+                    this.showToast(date + ' の設定を解除しました');
+                },
+
+                refreshCalendarDays() {
+                    if (this.calendar) this.calendar.render();
+                },
+
+                showToast(msg) {
+                    this.toast.message = msg;
+                    this.toast.show = true;
+                    setTimeout(() => { this.toast.show = false; }, 3000);
+                },
+
+                toggleWeekends() {
+                    this.hideWeekends = !this.hideWeekends;
+                    if (this.calendar) {
+                        this.calendar.setOption('weekends', !this.hideWeekends);
+                    }
+                },
+
+                getHolidaysMap(year) {
+                    return {
+                        ...getJapaneseHolidays(year - 1),
+                        ...getJapaneseHolidays(year),
+                        ...getJapaneseHolidays(year + 1),
+                        ...getJapaneseHolidays(year + 2)
+                    };
+                },
+
+                initCalendar() {
+                    const calendarEl = document.getElementById('calendar');
+
+                    this.calendar = new FullCalendar.Calendar(calendarEl, {
+                        locale: 'ja',
+                        initialView: 'dayGridMonth',
+                        weekends: !this.hideWeekends,
+                        headerToolbar: false,
+                        editable: true,
+                        selectable: true,
+                        events: this.getCalendarEvents(),
+                        
+                        // 祝日・不可日のラベルを日付数字のすぐ下に挿入
+                        dayCellDidMount: (arg) => {
+                            const dateStr = [arg.date.getFullYear(), String(arg.date.getMonth()+1).padStart(2,'0'), String(arg.date.getDate()).padStart(2,'0')].join('-');
+                            const holidayMap = this.getHolidaysMap(arg.date.getFullYear());
+                            const holidayName = holidayMap[dateStr];
+                            const unavailable = this.unavailableDates.find(item => item.date === dateStr);
+                            const topEl = arg.el.querySelector('.fc-daygrid-day-top');
+                            
+                            if (holidayName) {
+                                arg.el.classList.add('holiday-cell');
+                                if (topEl) {
+                                    const badge = document.createElement('div');
+                                    badge.className = 'holiday-label';
+                                    badge.innerText = '祝: ' + holidayName;
+                                    topEl.after(badge);
+                                }
+                            }
+                            if (unavailable) {
+                                arg.el.classList.add('unavailable-cell');
+                                if (topEl) {
+                                    const badge = document.createElement('div');
+                                    badge.className = 'unavailable-label';
+                                    badge.innerText = unavailable.reason ? '不可: ' + unavailable.reason : '手術不可';
+                                    topEl.after(badge);
+                                }
+                            }
+                        },
+
+                        dateClick: (info) => {
+                            const dateStr = info.dateStr;
+                            const holidayMap = this.getHolidaysMap(new Date(dateStr).getFullYear());
+                            const holidayName = holidayMap[dateStr];
+                            const unavailable = this.unavailableDates.find(item => item.date === dateStr);
+
+                            if (holidayName) {
+                                this.showToast(`この日は祝日（${holidayName}）のため手術予定は登録できません`);
+                                return;
+                            }
+                            if (unavailable) {
+                                this.showToast('この日は手術不可日です' + (unavailable.reason ? '：' + unavailable.reason : ''));
+                                return;
+                            }
+                            this.openModal('add', { date: dateStr });
+                        },
+
+                        eventClick: (info) => {
+                            const item = this.surgeries.find(s => s.id === info.event.id);
+                            if (item) this.editSurgery(item);
+                        },
+
+                        eventDrop: (info) => {
+                            const item = this.surgeries.find(s => s.id === info.event.id);
+                            if (!item) return;
+
+                            const newDate = info.event.startStr.split('T')[0];
+                            const holidayMap = this.getHolidaysMap(new Date(newDate).getFullYear());
+                            const holidayName = holidayMap[newDate];
+                            const unavailable = this.unavailableDates.find(u => u.date === newDate);
+
+                            if (holidayName || unavailable) {
+                                info.revert();
+                                this.showToast(`移動先（${newDate}）は${holidayName ? '祝日（' + holidayName + '）' : '手術不可日'}のため移動できません`);
+                                return;
+                            }
+
+                            if (this.isAltPressed) {
+                                info.revert();
+                                const newItem = {
+                                    ...item,
+                                    id: Date.now().toString(),
+                                    date: newDate,
+                                    patientName: item.patientName + ' (コピー)'
+                                };
+                                this.surgeries.push(newItem);
+                                this.saveToStorage();
+                                this.refreshCalendarEvents();
+                                this.showToast(`${item.patientName} 様の予定を ${newDate} に複製しました`);
+                            } else {
+                                item.date = newDate;
+                                this.saveToStorage();
+                                this.showToast(`${item.patientName} 様の手術日を ${newDate} に変更しました`);
+                            }
+                        },
+
+                        datesSet: (info) => {
+                            this.calendarTitle = info.view.title;
+                        }
+                    });
+
+                    this.calendar.render();
+                },
+
+                getCalendarEvents() {
+                    return this.surgeries.map(s => {
+                        let color = '#10b981'; // ★1〜2
+                        if (s.difficulty === 3) color = '#f59e0b'; // ★3
+                        if (s.difficulty >= 4) color = '#ef4444'; // ★4〜5
+
+                        let prefix = s.time ? `${s.time} ` : '';
+                        let titleText = `${prefix}[${s.eye}] ${s.patientName} (${s.patientId}) ${s.content}`;
+                        if (s.memo && s.memo.trim() !== '') {
+                            titleText += ` / ${s.memo}`;
+                        }
+
+                        return {
+                            id: s.id,
+                            title: titleText,
+                            start: s.date,
+                            backgroundColor: color,
+                            borderColor: color,
+                            textColor: '#ffffff',
+                            extendedProps: { ...s }
+                        };
+                    });
+                },
+
+                refreshCalendarEvents() {
+                    if (!this.calendar) return;
+                    this.calendar.removeAllEvents();
+                    this.calendar.addEventSource(this.getCalendarEvents());
+                },
+
+                openModal(mode = 'add', prefill = {}) {
+                    this.modalMode = mode;
+                    if (mode === 'add') {
+                        const todayStr = new Date().toLocaleDateString('sv-SE');
+                        this.form = {
+                            id: Date.now().toString(),
+                            patientId: 'ID-' + Math.floor(10000 + Math.random() * 90000),
+                            patientName: '',
+                            date: prefill.date || todayStr,
+                            time: '',
+                            duration: 30,
+                            eye: '右',
+                            content: 'PEA+IOL',
+                            difficulty: 2,
+                            memo: ''
+                        };
+                    } else if (mode === 'copy') {
+                        this.form = {
+                            ...prefill,
+                            id: Date.now().toString(),
+                            patientName: prefill.patientName + ' (コピー)'
+                        };
+                    } else {
+                        this.form = { ...prefill };
+                    }
+                    this.isModalOpen = true;
+                },
+
+                closeModal() {
+                    this.isModalOpen = false;
+                },
+
+                saveSurgery() {
+                    const targetDate = this.form.date;
+                    const holidayMap = this.getHolidaysMap(new Date(targetDate).getFullYear());
+                    const holidayName = holidayMap[targetDate];
+                    const unavailable = this.unavailableDates.find(u => u.date === targetDate);
+
+                    if (holidayName || unavailable) {
+                        alert(`指定された日付（${targetDate}）は${holidayName ? '祝日（' + holidayName + '）' : '手術不可日'}のため登録できません。`);
+                        return;
+                    }
+
+                    if (this.modalMode === 'add' || this.modalMode === 'copy') {
+                        this.surgeries.push({ ...this.form });
+                        this.showToast('手術予定を登録・追加しました');
+                    } else {
+                        const index = this.surgeries.findIndex(s => s.id === this.form.id);
+                        if (index !== -1) {
+                            this.surgeries[index] = { ...this.form };
+                            this.showToast('手術予定を更新しました');
+                        }
+                    }
+                    this.saveToStorage();
+                    this.refreshCalendarEvents();
+                    this.closeModal();
+                },
+
+                editSurgery(item) {
+                    this.openModal('edit', item);
+                },
+
+                duplicateSurgery(item) {
+                    this.openModal('copy', item);
+                },
+
+                deleteSurgery(id) {
+                    if (confirm('この手術予定を削除してもよろしいですか？')) {
+                        this.surgeries = this.surgeries.filter(s => s.id !== id);
+                        this.saveToStorage();
+                        this.refreshCalendarEvents();
+                        this.showToast('手術予定を削除しました');
+                    }
+                },
+
+                sortList(field) {
+                    if (this.sortField === field) {
+                        this.sortAsc = !this.sortAsc;
+                    } else {
+                        this.sortField = field;
+                        this.sortAsc = true;
+                    }
+                },
+
+                get filteredSurgeries() {
+                    let result = this.surgeries.filter(item => {
+                        const matchQuery = this.searchQuery === '' || 
+                            item.patientName.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
+                            item.patientId.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
+                            item.content.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
+                            (item.memo && item.memo.toLowerCase().includes(this.searchQuery.toLowerCase()));
+                        
+                        const matchEye = this.filterEye === '' || item.eye === this.filterEye;
+                        const matchDiff = this.filterDifficulty === '' || item.difficulty == this.filterDifficulty;
+
+                        return matchQuery && matchEye && matchDiff;
+                    });
+
+                    return result.sort((a, b) => {
+                        let valA = a[this.sortField];
+                        let valB = b[this.sortField];
+
+                        if (this.sortField === 'time') {
+                            if (!valA) return 1;
+                            if (!valB) return -1;
+                        }
+
+                        if (this.sortField === 'difficulty' || this.sortField === 'duration') {
+                            valA = Number(valA);
+                            valB = Number(valB);
+                        }
+
+                        if (valA < valB) return this.sortAsc ? -1 : 1;
+                        if (valA > valB) return this.sortAsc ? 1 : -1;
+                        return 0;
+                    });
+                }
+            }
+        }
+    </script>
+</body>
+</html>
