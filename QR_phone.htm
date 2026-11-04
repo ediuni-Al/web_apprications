@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Internet Start Page for PC</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎶</text></svg>">
+    <title>Start Page for Phone</title>
+    <!-- QRコード読み取り用ライブラリ -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         :root {
+            /* ライトモード変数 */
             --md-bg: #f5fafd; 
             --md-primary: #0077b6;
             --md-on-surface: #1a1c1e;
@@ -16,6 +18,7 @@
             --font-main: 13px;
         }
 
+        /* ダークモード変数 */
         [data-theme="dark"] {
             --md-bg: #1a1c1e;
             --md-primary: #76d1ff;
@@ -59,7 +62,8 @@
             margin: 0;
         }
 
-        .theme-toggle {
+        /* ヘッダー内のボタン共通スタイル */
+        .header-btn {
             cursor: pointer;
             padding: 5px 10px;
             border-radius: 20px;
@@ -71,6 +75,18 @@
             align-items: center;
             gap: 5px;
             transition: all 0.2s;
+            text-decoration: none;
+        }
+        .header-btn:hover {
+            background: var(--md-primary);
+            color: var(--md-container);
+        }
+
+        .nav-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 20px;
         }
 
         .chip {
@@ -82,69 +98,217 @@
             font-size: 0.85rem;
             font-weight: 500;
             transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            border: none;
-            cursor: pointer;
         }
 
-        .chip:hover { background-color: var(--md-primary); color: #fff; }
+        .chip:hover {
+            background-color: var(--md-primary);
+            color: #fff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
 
-        .stack-grid { display: flex; flex-direction: column; gap: 10px; }
-        section { background: var(--md-container); padding: 12px 18px; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
-        h2 { font-size: 0.9rem; font-weight: 700; color: var(--md-primary); margin-top: 0; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--md-surface-variant); padding-bottom: 4px; }
-        .link-list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 2px; }
-        .link-list a { text-decoration: none; color: var(--md-on-surface); font-size: 0.82rem; display: block; padding: 2px 6px; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .link-list a:hover { background-color: var(--md-link-hover); color: var(--md-primary); padding-left: 10px; }
+        .stack-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        section {
+            background: var(--md-container);
+            padding: 10px 18px;
+            border-radius: 12px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        h2 {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--md-primary);
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: default;
+        }
+
+        /* リンク一覧の制御 */
+        .link-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 2px;
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transform: translateY(-8px);
+            transition: 
+                max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.4s ease,
+                transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                margin 0.3s ease;
+        }
+
+        section:hover {
+            box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+        }
+
+        section:hover .link-list {
+            max-height: 500px;
+            opacity: 1;
+            transform: translateY(0);
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid var(--md-surface-variant);
+        }
+
+        .link-list a {
+            text-decoration: none;
+            color: var(--md-on-surface);
+            font-size: 0.82rem;
+            transition: all 0.2s ease-out;
+            display: block;
+            padding: 6px 8px;
+            border-radius: 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .link-list a:hover {
+            background-color: var(--md-link-hover);
+            color: var(--md-primary);
+            padding-left: 12px;
+            font-weight: 500;
+        }
+
+        .admin-section {
+            background: var(--md-surface-variant);
+            opacity: 0.95;
+        }
+
+        /* QRスキャナーモーダル用スタイル */
+        #qr-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .qr-modal-content {
+            background: var(--md-container);
+            padding: 20px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            position: relative;
+        }
+        #reader {
+            width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .close-modal {
+            margin-top: 15px;
+            padding: 8px 20px;
+            background: #e76f51;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* コピー成功トースト通知 */
+        #toast {
+            visibility: hidden;
+            min-width: 250px;
+            background-color: #2a9d8f;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 12px;
+            position: fixed;
+            z-index: 1001;
+            left: 50%;
+            bottom: 30px;
+            transform: translateX(-50%);
+            font-size: 0.9rem;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        #toast.show {
+            visibility: visible;
+            animation: fadein 0.3s, fadeout 0.3s 2.0s;
+        }
+        @keyframes fadein { from { bottom: 0; opacity: 0; } to { bottom: 30px; opacity: 1; } }
+        @keyframes fadeout { from { bottom: 30px; opacity: 1; } to { bottom: 0; opacity: 0; } }
+
+        @media (max-width: 600px) {
+            .link-list { grid-template-columns: 1fr 1fr; }
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
-<header>
-    <h1>Internet Start Page for PC</h1>
-    <div style="display: flex; align-items: center; gap: 6px;">
-        <a href="https://gemini.google.com/app" class="chip"><span>🔍</span> Gemini</a>
-        <a href="https://chatgpt.com/" class="chip"><span>🔍</span> ChatGPT</a>
-        <a href="https://copilot.microsoft.com/" class="chip"><span>🔍</span> Copilot</a>
-        <a href="https://mail.google.com/mail/u/0/#inbox" class="chip"><span>✉️</span>Gmail</a>
-        <a href="https://www.google.com/maps/" class="chip"><span>🗾</span> Googleマップ</a>
-        <a href="https://calendar.google.com/calendar/u/0/r?tab=Yc#main_7" class="chip"><span>📆</span> Calendar</a>
-        <a href="file:///D:/GoogleDrive/1_%E3%81%9F%E3%81%8B%E3%81%97%E3%81%AE%E3%83%95%E3%82%A1%E3%82%A4%E3%83%AB/[%20%E8%87%AA%E4%BD%9C%E3%81%AE%E3%82%A2%E3%83%97%E3%83%AA%E3%82%84%E3%82%B9%E3%82%AF%E3%83%AA%E3%83%97%E3%83%88%20]/Bookmark%E7%AE%A1%E7%90%86.htm" class="chip"><span>🔖</span> 編集</a>
-        <!-- アイコンのみのQRコード作成ボタン -->
-        <button class="chip" id="qr-open-btn" title="QRコード作成" style="padding: 5px 10px;"><span>📱</span></button>
-        <button class="theme-toggle" id="theme-toggle" style="margin-left: 4px;">
-            <span id="theme-icon">🌙</span> <span id="theme-text">Dark Mode</span>
-        </button>
-    </div>
-</header>
+    <header>
+        <h1>Start Page for Phone</h1>
+        <!-- ヘッダー右側：🔖 ➡️ 📷️ ➡️ Light/Dark Mode の順に配置 -->
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <a href="content://com.google.android.apps.docs.storage.legacy/enc%3Dencoded%3Dfq-0nng_0894MMVqcQntwDJ1qcXrB1DP9pENNvvpNQvvOARAkQ%3D%3D" class="header-btn">🔖</a>
+            <button class="header-btn" id="qr-scan-btn" title="QR読取">📷️</button>
+            <button class="header-btn" id="theme-toggle">
+                <span id="theme-icon">🌙</span> <span id="theme-text">Dark Mode</span>
+            </button>
+        </div>
+    </header>
+
+    <nav class="nav-chips">
+        <a href="https://www.2nn.jp/" class="chip"><span>📰</span> 2nn</a>
+        <a href="https://news.yahoo.co.jp/" class="chip"><span>📰</span> Yahoo!ニュース</a>
+        <a href="https://weather.yahoo.co.jp/weather/pollen/10/46/46201/" class="chip"><span>🌤️</span> 花粉情報</a>
+
+<div style="flex-basis: 100%; height: 5px;"></div>
+
+        <a href="https://www.amazon.co.jp/" class="chip"><span>🛒</span> Amazon</a>
+        <a href="https://travel.yahoo.co.jp/" class="chip"><span>🏨</span> Yahoo!トラベル</a>
+
+<div style="flex-basis: 100%; height: 5px;"></div>
+
+        <a href="https://finance.yahoo.co.jp/portfolio/detail?portfolioId=2" class="chip"><span>💹</span> 保有株</a>
+        <a href="https://finance.yahoo.co.jp/portfolio/detail?portfolioId=17" class="chip"><span>💹</span> 米国株</a>
+
+        <a href="https://finance.yahoo.co.jp/portfolio/detail?portfolioId=13" class="chip"><span>💹</span> 投資信託</a>
+
+<div style="flex-basis: 100%; height: 5px;"></div>
+        <a href="https://ediuni-al.github.io/web_apprications/%E5%85%85%E9%9B%BB%E6%96%99%E9%87%91%E8%A8%88%E7%AE%97.htm" class="chip"><span>️💰</span> 充電料金計算</a>
+        <a href="https://qden.enegate.jp/enegate/smartmobile/standMapSearch.php?AreaId=8" class="chip"><span>🗺️</span> エコQ電マップ</a>
+        <a href="content://com.google.android.apps.docs.storage.legacy/enc%3Dencoded%3D320ucKj1ft4X-58UanVspQJcRMFLlEX1RwsjpbeCIs7_ZBWPyw%3D%3D" class="chip"><span>📍️</span> AutoNav</a>
+<div style="flex-basis: 100%; height: 0;"></div>
+        <a href="https://www.google.com/maps/search/CHAdeMO+50kW/" class="chip"><span>🗺️</span> CHAdeMOマップ</a>
+        <a href="https://ev.gogo.gs/map" class="chip"><span>🗺️</span> EV充電器マップ</a>
+<div style="flex-basis: 100%; height: 0;"></div>
+        <a href="https://ediuni-al.github.io/IV_date/Date%20Calculation%20Tool.html" class="chip"><span>🗓️</span> 日程計算機</a>
+        <a href="content://com.google.android.apps.docs.storage.legacy/enc%3Dencoded%3DdDqySbRt0_qfYRqzwQUnaV5aNbJzJW7NqzxBx1xw54peJEMxvg%3D%3D" class="chip"><span>🪫️</span> EV充電記録</a>
+        <a href="https://note.com/notes?status=draft" class="chip"><span>📒️</span> note</a>
+
+    </nav>
 
     <div class="stack-grid">
-        <section>
-            <h2><span class="title-icon">🛒</span>ショッピング</h2>
-            <ul class="link-list">
-                <li><a href="https://www.amazon.co.jp/">Amazon.co.jp</a></li>
-                <li><a href="https://ja.aliexpress.com/">Aliexpress</a></li>
-                <li><a href="https://shopping.yahoo.co.jp/">Yahoo!ショッピング</a></li>
-                <li><a href="https://www.amazon.co.jp/gp/goldbox">Amazonタイムセール</a></li>
-                <li><a href="https://www.amazon.co.jp/gp/subscribe-and-save/manager/viewsubscriptions">定期おトク便</a></li>
-                <li><a href="https://www.rakuten.co.jp/">楽天市場</a></li>
-                <li><a href="https://www.yodobashi.com/">ヨドバシカメラ</a></li>
-                <li><a href="https://furunavi.jp/?saf_src=google_g&saf_pt=&saf_kw=%E3%81%B5%E3%82%8B%E3%81%AA%E3%81%B3&saf_dv=&saf_cam=684444441&saf_grp=79650059495&saf_ad=491687200278&account_id=9186253878&saf_acc=9186253878&saf_cam_tp=search&gad_campaignid=684444441">ふるなび</a></li>
-                <li><a href="http://www.kakaku.com/">価格.com</a></li>
-                <li><a href="https://jp.mercari.com/">メルカリ</a></li>
-                <li><a href="https://paypayfleamarket.yahoo.co.jp/">Yahoo！フリマ</a></li>
-                <li><a href="https://auctions.yahoo.co.jp/">ヤフオク！</a></li>
-                <li><a href="https://auth.kms.kuronekoyamato.co.jp/...">クロネコヤマト再配達</a></li>
-                <li><a href="https://www.amazon.co.jp/kindle-dbs/hz/bookshelf?disableDOICheckbox=&gad_campaignid=21478477901&isDesktop=true&isJuno=false&isTos=false&shoppingPortalEnabled=true&shouldDisableDoiCheckbox=false&isMobile=false">Kindle</a></li>
-            </ul>
-        </section>
 
         <section>
             <h2><span class="title-icon">🌤️</span>ニュース & SNS</h2>
             <ul class="link-list">
-                <li><a href="http://www.2nn.jp/">2NN</a></li>
+                <li><a href="http://www.2nn.jp/">2NN ニュース速報</a></li>
                 <li><a href="http://news.yahoo.co.jp/">Yahoo!ニュース</a></li>
                 <li><a href="https://itsoku.org/">IT速報</a></li>
                 <li><a href="https://www.mbc.co.jp/news/">MBCニュース</a></li>
@@ -159,28 +323,6 @@
         </section>
 
         <section>
-            <h2><span class="title-icon">🚗️</span>EV関連</h2>
-            <ul class="link-list">
-                <li><a href="https://note.com/notes">📒note</a></li>
-                <li><a href="https://www.canva.com/">🎨Canva</a></li>
-                <li><a href="file:///D:/GoogleDrive/1_%E3%81%9F%E3%81%8B%E3%81%97%E3%81%AE%E3%83%95%E3%82%A1%E3%82%A4%E3%83%AB/[%20%E8%87%AA%E4%BD%9C%E3%81%AE%E3%82%A2%E3%83%97%E3%83%AA%E3%82%84%E3%82%B9%E3%82%AF%E3%83%AA%E3%83%97%E3%83%88%20]/EV%E3%82%B9%E3%82%AF%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E5%8F%96%E6%9D%90%E3%82%A2%E3%83%97%E3%83%AA.htm">⚡EV取材DB</a></li>
-                <li>
-                    <a href="https://ediuni-al.github.io/web_apprications/%E5%85%85%E9%9B%BB%E6%96%99%E9%87%91%E8%A8%88%E7%AE%97.htm" 
-                       onclick="openRightWindow(this.href); return false;">
-                       ⚡kW価格計算機
-                    </a>
-                </li>
-                <li>
-                    <a href="https://ediuni-al.github.io/web_apprications/EV.htm" 
-                       onclick="openRightWindow(this.href); return false;">
-                       ⚡ICE換算機
-                    </a>
-                </li>
-                <li><a href="file:///D:/GoogleDrive/1_%E3%81%9F%E3%81%8B%E3%81%97%E3%81%AE%E3%83%95%E3%82%A1%E3%82%A4%E3%83%AB/[%20%E8%87%AA%E4%BD%9C%E3%81%AE%E3%82%A2%E3%83%97%E3%83%AA%E3%82%84%E3%82%B9%E3%82%AF%E3%83%AA%E3%83%97%E3%83%88%20]/Android%20Auto%20Assist.htm">📍AutoNav</a></li>
-            </ul>
-        </section>
-
-        <section>
             <h2><span class="title-icon">✈️</span>旅行関連</h2>
             <ul class="link-list">
                 <li><a href="https://travel.yahoo.co.jp/">Yahoo!トラベル</a></li>
@@ -188,9 +330,48 @@
                 <li><a href="https://www.ana.co.jp/">ANA</a></li>
                 <li><a href="https://www.jal.co.jp/">JAL</a></li>
                 <li><a href="https://www.flypeach.com/">Peach</a></li>
-                <li><a href="https://map.yahoo.co.jp/?lat=31.41470&lon=130.62676&zoom=10&maptype=basic">Yahoo!マップ</a></li>
                 <li><a href="https://www.michitabi.com/roundtour/kyushudrive/">九州ドライブパス</a></li>
-                <li><a href="file:///D:/GoogleDrive/1_%E3%81%9F%E3%81%8B%E3%81%97%E3%81%AE%E3%83%95%E3%82%A1%E3%82%A4%E3%83%AB/[%20%E8%87%AA%E4%BD%9C%E3%81%AE%E3%82%A2%E3%83%97%E3%83%AA%E3%82%84%E3%82%B9%E3%82%AF%E3%83%AA%E3%83%97%E3%83%88%20]/Android%20Auto%20Assist.htm">📍AutoNav</a></li>
+            </ul>
+        </section>
+
+        <section>
+            <h2><span class="title-icon">🌏️</span>その他色々</h2>
+            <ul class="link-list">
+                <li><a href="https://furunavi.jp/?utm_source=google&utm_medium=cpc&utm_campaign=brand_top&rid=b72ed719f8473e3a2b522f01">ふるなび</a></li>
+                <li><a href="https://www.amazon.co.jp/kindle-dbs/fd/prime-pr/ref=sv_kinc_6">Prime Reading</a></li>
+                <li><a href="https://www.amazon.co.jp/hz/mycd/digital-console/contentlist/booksAll/dateDsc/">コンテンツと端末の管理</a></li>
+            </ul>
+        </section>
+
+        <section>
+            <h2><span class="title-icon">💎</span>投資と個人事業関連</h2>
+            <ul class="link-list">
+                <li><a href="https://finance.yahoo.co.jp/portfolio/detail?portfolioId=2">保有株</a></li>
+                <li><a href="https://finance.yahoo.co.jp/portfolio/detail?portfolioId=17">米国株</a></li>
+                <li><a href="https://finance.yahoo.co.jp/portfolio/detail?portfolioId=13">投資信託</a></li>
+                <li><a href="https://www.rakuten-sec.co.jp/smartphone/?l-id=vtop_select_sp">楽天証券</a></li>
+                <li><a href="https://finance.yahoo.co.jp/quote/5040469.O">日経先物</a></li>
+                <li><a href="https://chartpark.com/wti.html">原油先物</a></li>
+                <li><a href="https://ib.kagin.co.jp/imn/IBGate">かぎんeバンク</a></li>
+                <li><a href="https://www.rakuten-bank.co.jp/">楽天銀行</a></li>
+                <li><a href="https://shinkoku.yayoi-kk.co.jp/Home">やよいon line</a></li>
+            </ul>
+        </section>
+
+        <section>
+            <h2><span class="title-icon">🛒</span>ショッピング</h2>
+            <ul class="link-list">
+                <li><a href="https://www.amazon.co.jp/">Amazon.co.jp</a></li>
+                <li><a href="https://ja.aliexpress.com/">Aliexpress</a></li>
+                <li><a href="https://shopping.yahoo.co.jp/">Yahoo!ショッピング</a></li>
+                <li><a href="https://www.amazon.co.jp/gp/goldbox">Amazonタイムセール</a></li>
+                <li><a href="https://www.amazon.co.jp/gp/subscribe-and-save/manager/viewsubscriptions/ref=nav__gno_yam_mysns">定期おトク便</a></li>
+                <li><a href="https://www.rakuten.co.jp/">楽天市場</a></li>
+                <li><a href="https://www.yodobashi.com/">ヨドバシカメラ</a></li>
+                <li><a href="https://jp.mercari.com/">メルカリ</a></li>
+                <li><a href="http://www.kakaku.com/">価格.com</a></li>
+                <li><a href="https://auctions.yahoo.co.jp/">ヤフオク！</a></li>
+                <li><a href="https://auth.kms.kuronekoyamato.co.jp/auth/login?forwardUrl=https%3A%2F%2Fmember.kms.kuronekoyamato.co.jp%2Fmember%2Fparcel">クロネコヤマト再配達</a></li>
             </ul>
         </section>
 
@@ -204,26 +385,10 @@
         </section>
 
         <section>
-            <h2><span class="title-icon">💎</span>投資と個人事業</h2>
-            <ul class="link-list">
-                <li><a href="https://finance.yahoo.co.jp/portfolio/detail?portfolioId=2">保有株</a></li>
-                <li><a href="https://finance.yahoo.co.jp/portfolio/detail?portfolioId=17">米国株</a></li>
-                <li><a href="https://finance.yahoo.co.jp/portfolio/detail?portfolioId=13">投資信託</a></li>
-                <li><a href="https://www.rakuten-sec.co.jp/">楽天証券</a></li>
-                <li><a href="https://finance.yahoo.co.jp/quote/5040469.O">日経先物</a></li>
-                <li><a href="https://chartpark.com/wti.html">原油先物</a></li>
-                <li><a href="https://ib.kagin.co.jp/imn/IBGate">かぎんeバンク</a></li>
-                <li><a href="https://www.rakuten-bank.co.jp/">楽天銀行</a></li>
-                <li><a href="https://www.rakuten-card.co.jp/e-navi/members/statement/download-list.xhtml">楽天カード明細</a></li>
-                <li><a href="https://shinkoku.yayoi-kk.co.jp/Home">やよいon line</a></li>
-            </ul>
-        </section>
-
-        <section>
             <h2><span class="title-icon">👀</span>眼科関連</h2>
             <ul class="link-list">
                 <li><a href="https://yakka-search.com/">薬価サーチ</a></li>
-                <li><a href="https://ophthalmology-update.jp/">參天眼科Update</a></li>
+                <li><a href="https://ophthalmology-update.jp/">参天眼科Update</a></li>
                 <li><a href="https://www.m3.com/clinical/journal/articles?specialtyId=10015">m3海外ジャーナル</a></li>
                 <li><a href="https://www.gankaikai.or.jp/members_login.html">保険診療Q&A</a></li>
                 <li><a href="https://www.aao.org/journals">AAO online</a></li>
@@ -231,7 +396,7 @@
             </ul>
         </section>
 
-        <section style="background: var(--md-surface-variant); opacity: 0.9;">
+        <section class="admin-section">
             <h2><span class="title-icon">⚙️</span>自宅専用</h2>
             <ul class="link-list">
                 <li><a href="http://192.168.11.1/index_adv.html&item=0">Airstation再起動</a></li>
@@ -239,7 +404,7 @@
                 <li><a href="https://nyaa.si/?c=3_3">nyaa</a></li>
                 <li><a href="https://my.kyuden.co.jp/">My九電</a></li>
                 <li><a href="https://mypage.bmobile.ne.jp/auth/realms/jci_mypage/protocol/openid-connect/auth?response_type=code&scope=openid&client_id=app-client&state=hQmbQXjWLgOaHcUlRPyt9QB02qQ&redirect_uri=https%3A%2F%2Fmypage.bmobile.ne.jp%2Fauth%2Fcallback&nonce=LLcVnxgDgxefSX3hlgY-39dAIBCp74H2ON2Wm4kgKAE">日本通信</a></li>
-                <li><a href="https://www.axa-direct.co.jp/auto/">アクサ自動車保険</a></li>
+                <li><a href="https://www.axa-direct.co.jp/amp/html/#/auth/login">アクサ</a></li>
                 <li><a href="https://net.zurich.jp/">チューリッヒ</a></li>
                 <li><a href="https://fast.com/ja/">回線速度測定</a></li>
             </ul>
@@ -247,124 +412,113 @@
     </div>
 </div>
 
+<!-- QRスキャナー用モーダル -->
+<div id="qr-modal">
+    <div class="qr-modal-content">
+        <div id="reader"></div>
+        <button class="close-modal" id="qr-close-btn">閉じる</button>
+    </div>
+</div>
+
+<!-- コピー成功時のトースト通知 -->
+<div id="toast">QRコードの内容をコピーしました！</div>
+
 <script>
-function openRightWindow(url) {
-    var w = 500;
-    var h = 600;
-    var l = window.screen.width - w - 10;
-    var t = 10;
-    window.open(url, 'chargingCalc', 'width=' + w + ',height=' + h + ',left=' + l + ',top=' + t + ',scrollbars=yes,resizable=yes');
-}
+    const themeToggle = document.getElementById('theme-toggle');
+    const themeIcon = document.getElementById('theme-icon');
+    const themeText = document.getElementById('theme-text');
+    const htmlElement = document.documentElement;
 
-// テーマ切り替え機能
-const themeToggle = document.getElementById('theme-toggle');
-const htmlElement = document.documentElement;
-const currentTheme = localStorage.getItem('theme') || 'light';
-if (currentTheme === 'dark') htmlElement.setAttribute('data-theme', 'dark');
-
-themeToggle.addEventListener('click', () => {
-    const isDark = htmlElement.getAttribute('data-theme') === 'dark';
-    htmlElement.setAttribute('data-theme', isDark ? '' : 'dark');
-    localStorage.setItem('theme', isDark ? 'light' : 'dark');
-});
-
-// 別ウィンドウで自由文章からQRコードを作成する機能（文字化け防止BOM付与対応）
-document.getElementById('qr-open-btn').addEventListener('click', (e) => {
-    e.preventDefault();
-
-    var w = 480;
-    var h = 580;
-    var l = window.screen.width - w - 10;
-    var t = 10;
-    
-    var qrWindow = window.open('', 'qrGenerator_' + Date.now(), 'width=' + w + ',height=' + h + ',left=' + l + ',top=' + t + ',scrollbars=yes,resizable=yes');
-    
-    if (!qrWindow) {
-        alert('ポップアップブロックが有効になっているため、別ウィンドウが開けません。ブラウザの設定をご確認ください。');
-        return;
+    const currentTheme = localStorage.getItem('theme') || 'light';
+    if (currentTheme === 'dark') {
+        htmlElement.setAttribute('data-theme', 'dark');
+        updateToggleUI(true);
     }
 
-    qrWindow.document.open();
-    qrWindow.document.write(`
-        <!DOCTYPE html>
-        <html lang="ja">
-        <head>
-            <meta charset="UTF-8">
-            <title>QRコード作成</title>
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
-            <style>
-                body {
-                    font-family: sans-serif;
-                    background: #f5fafd;
-                    color: #1a1c1e;
-                    padding: 20px;
-                    margin: 0;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                }
-                h2 {
-                    font-size: 1rem;
-                    color: #0077b6;
-                    margin-top: 0;
-                    margin-bottom: 8px;
-                }
-                textarea {
-                    width: 100%;
-                    height: 140px;
-                    padding: 8px;
-                    box-sizing: border-box;
-                    border: 1px solid #0077b6;
-                    border-radius: 6px;
-                    resize: vertical;
-                    font-size: 13px;
-                }
-                #qrcode {
-                    margin-top: 15px;
-                    display: flex;
-                    justify-content: center;
-                }
-            </style>
-        </head>
-        <body>
-            <h2>📱 QRコード作成（長文・日本語文字化け対策版）</h2>
-            <textarea id="qr-text" placeholder="ここにテキストやURLを貼り付けてください..."></textarea>
-            <div id="qrcode"></div>
+    themeToggle.addEventListener('click', () => {
+        const isDark = htmlElement.getAttribute('data-theme') === 'dark';
+        if (isDark) {
+            htmlElement.removeAttribute('data-theme');
+            localStorage.setItem('theme', 'light');
+            updateToggleUI(false);
+        } else {
+            htmlElement.setAttribute('data-theme', 'dark');
+            localStorage.setItem('theme', 'dark');
+            updateToggleUI(true);
+        }
+    });
 
-            <script>
-                const qrText = document.getElementById('qr-text');
-                const qrcodeContainer = document.getElementById('qrcode');
-                let qrcodeObj = null;
+    function updateToggleUI(isDark) {
+        themeIcon.textContent = isDark ? '☀️' : '🌙';
+        themeText.textContent = isDark ? 'Light Mode' : 'Dark Mode';
+    }
 
-                function makeQR() {
-                    let val = qrText.value.trim();
-                    qrcodeContainer.innerHTML = "";
-                    if (val !== "") {
-                        // 日本語対応を強化するため、先頭にUTF-8のBOM(\uFEFF)を付与
-                        let targetText = "\uFEFF" + val;
-                        try {
-                            qrcodeObj = new QRCode(qrcodeContainer, {
-                                text: targetText,
-                                width: 220,
-                                height: 220,
-                                colorDark : "#000000",
-                                colorLight : "#ffffff",
-                                correctLevel : QRCode.CorrectLevel.M
-                            });
-                        } catch (e) {
-                            qrcodeContainer.innerHTML = "<span style='color:red; font-size:12px;'>文字数が多すぎます</span>";
-                        }
-                    }
-                }
+    // --- QRコード読み取り機能のスクリプト ---
+    const qrScanBtn = document.getElementById('qr-scan-btn');
+    const qrModal = document.getElementById('qr-modal');
+    const qrCloseBtn = document.getElementById('qr-close-btn');
+    const toast = document.getElementById('toast');
+    let html5QrCode = null;
 
-                qrText.addEventListener('input', makeQR);
-            <\/script>
-        </body>
-        </html>
-    `);
-    qrWindow.document.close();
-    qrWindow.focus();
-});
+    function showToast(message) {
+        toast.textContent = message;
+        toast.className = "show";
+        setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 2300);
+    }
+
+    qrScanBtn.addEventListener('click', () => {
+        qrModal.style.display = 'flex';
+        html5QrCode = new Html5Qrcode("reader");
+        
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+        
+        html5QrCode.start(
+            { facingMode: "environment" }, // 外側カメラを使用
+            config,
+            (decodedText, decodedResult) => {
+                // 読み取り成功時：改行コードも含めてそのままクリップボードにコピー
+                navigator.clipboard.writeText(decodedText).then(() => {
+                    showToast("クリップボードにコピーしました！");
+                }).catch(err => {
+                    showToast("コピーに失敗しました");
+                });
+
+                // スキャンを停止してモーダルを閉じる
+                stopScanner();
+            },
+            (errorMessage) => {
+                // スキャン中のエラー（通常は無視してOK）
+            }
+        ).catch(err => {
+            alert("カメラを起動できませんでした（ブラウザのカメラ権限やHTTPS接続をご確認ください）。");
+            stopScanner();
+        });
+    });
+
+    function stopScanner() {
+        if (html5QrCode) {
+            html5QrCode.stop().then(() => {
+                html5QrCode.clear();
+                qrModal.style.display = 'none';
+            }).catch(err => {
+                qrModal.style.display = 'none';
+            });
+        } else {
+            qrModal.style.display = 'none';
+        }
+    }
+
+    qrCloseBtn.addEventListener('click', () => {
+        stopScanner();
+    });
+
+    // モーダルの外側を押しても閉じられるようにする
+    qrModal.addEventListener('click', (e) => {
+        if (e.target === qrModal) {
+            stopScanner();
+        }
+    });
 </script>
+
 </body>
 </html>
