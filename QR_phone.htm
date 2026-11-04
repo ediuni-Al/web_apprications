@@ -211,21 +211,59 @@
             max-width: 400px;
             text-align: center;
             position: relative;
+            box-sizing: border-box;
         }
         #reader {
             width: 100%;
             border-radius: 8px;
             overflow: hidden;
         }
+        
+        /* 読み取り結果表示エリア */
+        #qr-result-container {
+            display: none;
+            margin-top: 10px;
+            flex-direction: column;
+            gap: 10px;
+        }
+        #qr-result-text {
+            width: 100%;
+            height: 100px;
+            background: var(--md-bg);
+            color: var(--md-on-surface);
+            border: 1px solid var(--md-surface-variant);
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+        .modal-btn-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        .copy-btn {
+            padding: 8px 16px;
+            background: var(--md-primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9rem;
+            flex: 1;
+        }
         .close-modal {
-            margin-top: 15px;
-            padding: 8px 20px;
+            padding: 8px 16px;
             background: #e76f51;
             color: white;
             border: none;
             border-radius: 6px;
             cursor: pointer;
             font-weight: bold;
+            font-size: 0.9rem;
         }
 
         /* コピー成功トースト通知 */
@@ -416,7 +454,16 @@
 <div id="qr-modal">
     <div class="qr-modal-content">
         <div id="reader"></div>
-        <button class="close-modal" id="qr-close-btn">閉じる</button>
+        
+        <!-- 読み取り結果表示エリア -->
+        <div id="qr-result-container">
+            <textarea id="qr-result-text" readonly placeholder="読み取り結果がここに表示されます"></textarea>
+        </div>
+
+        <div class="modal-btn-group">
+            <button class="copy-btn" id="qr-copy-btn" style="display: none;">📋 コピー</button>
+            <button class="close-modal" id="qr-close-btn">閉じる</button>
+        </div>
     </div>
 </div>
 
@@ -457,6 +504,10 @@
     const qrScanBtn = document.getElementById('qr-scan-btn');
     const qrModal = document.getElementById('qr-modal');
     const qrCloseBtn = document.getElementById('qr-close-btn');
+    const qrCopyBtn = document.getElementById('qr-copy-btn');
+    const qrResultContainer = document.getElementById('qr-result-container');
+    const qrResultText = document.getElementById('qr-result-text');
+    const readerDiv = document.getElementById('reader');
     const toast = document.getElementById('toast');
     let html5QrCode = null;
 
@@ -466,7 +517,14 @@
         setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 2300);
     }
 
+    // スキャン開始
     qrScanBtn.addEventListener('click', () => {
+        // UIの初期化
+        readerDiv.style.display = 'block';
+        qrResultContainer.style.display = 'none';
+        qrCopyBtn.style.display = 'none';
+        qrResultText.value = '';
+        
         qrModal.style.display = 'flex';
         html5QrCode = new Html5Qrcode("reader");
         
@@ -476,46 +534,68 @@
             { facingMode: "environment" }, // 外側カメラを使用
             config,
             (decodedText, decodedResult) => {
-                // 読み取り成功時：改行コードも含めてそのままクリップボードにコピー
-                navigator.clipboard.writeText(decodedText).then(() => {
-                    showToast("クリップボードにコピーしました！");
-                }).catch(err => {
-                    showToast("コピーに失敗しました");
-                });
-
-                // スキャンを停止してモーダルを閉じる
-                stopScanner();
+                // 読み取り成功時：カメラを即座にストップ
+                stopCameraOnly();
+                
+                // テキスト表示エリアに入力し表示切替
+                qrResultText.value = decodedText;
+                readerDiv.style.display = 'none';
+                qrResultContainer.style.display = 'flex';
+                qrCopyBtn.style.display = 'block';
             },
             (errorMessage) => {
-                // スキャン中のエラー（通常は無視してOK）
+                // スキャン中のエラー（無視）
             }
         ).catch(err => {
             alert("カメラを起動できませんでした（ブラウザのカメラ権限やHTTPS接続をご確認ください）。");
-            stopScanner();
+            closeModal();
         });
     });
 
-    function stopScanner() {
-        if (html5QrCode) {
+    // コピーボタンが押された時の処理
+    qrCopyBtn.addEventListener('click', () => {
+        const textToCopy = qrResultText.value;
+        if (!textToCopy) return;
+
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            showToast("コピーしました！ページを閉じます...");
+            
+            // 少し遅延させてからページ（タブ）を閉じる
+            setTimeout(() => {
+                window.close();
+                // window.close()がブロックされた場合（直接開かれたタブ等）はモーダルを閉じる
+                closeModal();
+            }, 500);
+        }).catch(err => {
+            showToast("コピーに失敗しました");
+        });
+    });
+
+    // カメラのみ停止
+    function stopCameraOnly() {
+        if (html5QrCode && html5QrCode.isScanning) {
             html5QrCode.stop().then(() => {
                 html5QrCode.clear();
-                qrModal.style.display = 'none';
             }).catch(err => {
-                qrModal.style.display = 'none';
+                console.error("Camera stop error:", err);
             });
-        } else {
-            qrModal.style.display = 'none';
         }
     }
 
+    // モーダル全体を閉じる
+    function closeModal() {
+        stopCameraOnly();
+        qrModal.style.display = 'none';
+    }
+
     qrCloseBtn.addEventListener('click', () => {
-        stopScanner();
+        closeModal();
     });
 
-    // モーダルの外側を押しても閉じられるようにする
+    // モーダルの外側を押したときに閉じる
     qrModal.addEventListener('click', (e) => {
         if (e.target === qrModal) {
-            stopScanner();
+            closeModal();
         }
     });
 </script>
