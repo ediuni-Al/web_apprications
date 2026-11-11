@@ -6,18 +6,29 @@
 <title>🖌筆談くんneo</title>
 <style>
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; height: 100%; font-family: "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif; background: #000; color: #fff; overflow: hidden; }
+html, body { margin: 0; height: 100%; font-family: "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif; background: #fff; color: #000; overflow: hidden; }
 
 /* 全体レイアウト */
 #app { display: flex; flex-direction: column; height: 100vh; width: 100vw; }
 
 /* 上段：患者に見せる巨大表示エリア */
-#display-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 2vh 4vw; background: #000; position: relative; overflow-y: auto; }
+#display-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 2vh 4vw; background: #fff; color: #000; position: relative; overflow-y: auto; }
 #shown { white-space: pre-wrap; word-break: break-word; line-height: 1.3; width: 100%; text-align: left; font-size: 7vh; font-weight: bold; }
 #shown.empty { opacity: 0; }
 
-/* 下段：医師側の操作パネル */
-#control-area { height: 180px; background: #1a1a1a; border-top: 2px solid #333; display: flex; flex-direction: column; padding: 8px 12px; gap: 6px; flex-shrink: 0; }
+/* 下段：医師側の操作パネル (ナビゲーションバーかぶり防止用に余白確保) */
+#control-area { 
+  min-height: 190px; 
+  background: #1a1a1a; 
+  color: #fff;
+  border-top: 2px solid #333; 
+  display: flex; 
+  flex-direction: column; 
+  padding: 8px 12px; 
+  padding-bottom: max(12px, env(safe-area-inset-bottom)); /* Androidナビゲーションバー対策 */
+  gap: 8px; 
+  flex-shrink: 0; 
+}
 
 .row { display: flex; gap: 8px; align-items: center; width: 100%; }
 .row .sp { flex: 1; }
@@ -34,6 +45,7 @@ button:active { transform: scale(0.98); }
   100% { opacity: 1; }
 }
 
+#questionBtn { background: #e65100; font-size: 18px; padding: 10px 16px; min-width: 50px; }
 #exitBtn { background: #444; font-size: 14px; padding: 8px 12px; }
 #clearBtn { background: #555; font-size: 15px; padding: 8px 14px; }
 #manageBtn, #settingsBtn { background: #333; font-size: 14px; padding: 8px 12px; }
@@ -42,12 +54,12 @@ button:active { transform: scale(0.98); }
 .chips-container { display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; padding-bottom: 2px; align-items: center; width: 100%; }
 .chips-container::-webkit-scrollbar { height: 3px; }
 .chips-container::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
-.chip { background: #2c2c2c; border: 1px solid #555; border-radius: 16px; padding: 5px 12px; font-size: 14px; color: #eee; flex-shrink: 0; }
+.chip { background: #2c2c2c; border: 1px solid #555; border-radius: 16px; padding: 6px 14px; font-size: 15px; color: #eee; flex-shrink: 0; }
 .chip:active { background: #4a90e2; }
 
 .status-text { font-size: 12px; color: #aaa; }
 
-/* 共通モーダル（定型文・設定） */
+/* 共通モーダル */
 .modal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; }
 .modal.show { display: flex; }
 .modal-content { background: #222; width: 90vw; max-width: 600px; max-height: 80vh; border-radius: 12px; display: flex; flex-direction: column; padding: 20px; gap: 12px; border: 1px solid #444; color: #fff; }
@@ -58,7 +70,6 @@ button:active { transform: scale(0.98); }
 .modal-footer { display: flex; gap: 8px; align-items: center; }
 .modal-footer input { flex: 1; padding: 10px; font-size: 15px; border-radius: 8px; border: 1px solid #555; background: #111; color: #fff; }
 
-/* 設定フォーム用スタイル */
 .setting-row { display: flex; flex-direction: column; gap: 6px; background: #2a2a2a; padding: 12px; border-radius: 8px; }
 .setting-row label { font-size: 14px; color: #ccc; }
 .setting-row select, .setting-row input[type=range] { width: 100%; padding: 8px; font-size: 16px; border-radius: 6px; background: #111; color: #fff; border: 1px solid #555; }
@@ -78,6 +89,7 @@ button:active { transform: scale(0.98); }
 
     <div class="row">
       <button id="micBtn">🎤 話す間押し続ける (音声入力)</button>
+      <button id="questionBtn" title="文末に？を追加/削除">？</button>
       <button id="clearBtn">画面消去</button>
       <button id="manageBtn">⚙ 定型文</button>
       <button id="settingsBtn">🎨 表示設定</button>
@@ -106,300 +118,4 @@ button:active { transform: scale(0.98); }
 <!-- 表示設定モーダル -->
 <div id="modal-settings" class="modal">
   <div class="modal-content">
-    <div class="modal-header">
-      <span>表示設定 (文字・配色)</span>
-      <button class="closeModal" style="background:#555; padding:4px 10px; font-size:14px;">✕ 閉じる</button>
-    </div>
-    <div class="modal-body">
-      <div class="setting-row">
-        <label>文字サイズ (現在: <span id="sizeVal">7</span>vh)</label>
-        <input type="range" id="sizeRange" min="4" max="15" step="1" value="7">
-      </div>
-      <div class="setting-row">
-        <label>配色テーマ</label>
-        <select id="themeSelect">
-          <option value="bw">黒地に白（標準）</option>
-          <option value="wb">白地に黒</option>
-          <option value="by">黒地に黄</option>
-          <option value="nw">紺地に白</option>
-        </select>
-      </div>
-      <div class="setting-row">
-        <label>フォント</label>
-        <select id="fontSelect">
-          <option value='"Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif'>ゴシック</option>
-          <option value='"BIZ UDPGothic", "Meiryo", sans-serif'>UDゴシック</option>
-          <option value='"Yu Mincho", "Hiragino Mincho ProN", serif'>明朝体</option>
-        </select>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-(function(){
-  var KEY_PH = 'hitsudan_neo_phrases_v1';
-  var KEY_SET = 'hitsudan_neo_settings_v1';
-  var $=function(id){return document.getElementById(id)};
-  
-  function lsGet(k,d){ try{ var v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
-  function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
-
-  var displayArea = $('display-area');
-  var shown = $('shown');
-  var micBtn = $('micBtn');
-  var statusMsg = $('statusMsg');
-  
-  var hasActiveText = false;
-
-  // 設定の読み込み・適用
-  var defaultSettings = { size: 7, theme: 'bw', font: '"Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif' };
-  var settings = lsGet(KEY_SET, defaultSettings);
-
-  var THEMES = {
-    bw: { bg: '#000', fg: '#fff' },
-    wb: { bg: '#fff', fg: '#000' },
-    by: { bg: '#000', fg: '#ffe600' },
-    nw: { bg: '#0b1e4a', fg: '#fff' }
-  };
-
-  function applySettings() {
-    var th = THEMES[settings.theme] || THEMES.bw;
-    displayArea.style.background = th.bg;
-    displayArea.style.color = th.fg;
-    shown.style.fontSize = settings.size + 'vh';
-    shown.style.fontFamily = settings.font;
-
-    // 設定画面のUIにも反映
-    $('sizeRange').value = settings.size;
-    $('sizeVal').textContent = settings.size;
-    $('themeSelect').value = settings.theme;
-    $('fontSelect').value = settings.font;
-  }
-
-  // 定型文初期リスト
-  var defaultPhrases = [
-    'はい', 'いいえ', '少々お待ちください', 
-    '痛みはありますか？', 'これから検査を行います', 
-    'レンズを入れ替えます', 'まっすぐ前を見てください', 
-    'お疲れ様でした。終わりました。'
-  ];
-  var phrases = lsGet(KEY_PH, defaultPhrases);
-
-  function showText(text) {
-    if(!text || !text.trim()) {
-      shown.textContent = '';
-      shown.classList.add('empty');
-      hasActiveText = false;
-    } else {
-      shown.textContent = text.trim();
-      shown.classList.remove('empty');
-      hasActiveText = true;
-    }
-  }
-
-  function renderChips() {
-    var container = $('chips');
-    container.innerHTML = '';
-    phrases.forEach(function(p){
-      var btn = document.createElement('button');
-      btn.className = 'chip';
-      btn.textContent = p;
-      btn.onclick = function() {
-        showText(p);
-      };
-      container.appendChild(btn);
-    });
-  }
-
-  function renderPhraseList() {
-    var list = $('phraseList');
-    list.innerHTML = '';
-    if(phrases.length === 0) {
-      list.innerHTML = '<div style="color:#aaa; text-align:center; padding:20px;">定型文がありません</div>';
-      return;
-    }
-    phrases.forEach(function(p, index){
-      var item = document.createElement('div');
-      item.className = 'phrase-item';
-      
-      var span = document.createElement('span');
-      span.textContent = p;
-      
-      var delBtn = document.createElement('button');
-      delBtn.textContent = '削除';
-      delBtn.onclick = function() {
-        phrases.splice(index, 1);
-        lsSet(KEY_PH, phrases);
-        renderChips();
-        renderPhraseList();
-      };
-      
-      item.appendChild(span);
-      item.appendChild(delBtn);
-      list.appendChild(item);
-    });
-  }
-
-  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  var recognition = null;
-
-  if(SpeechRecognition) {
-    recognition = new SpeechRecognition();
-    recognition.lang = 'ja-JP';
-    recognition.interimResults = true; 
-    recognition.maxAlternatives = 1;
-
-    var finalTranscriptBuffer = '';
-
-    recognition.onstart = function() {
-      micBtn.classList.add('recording');
-      micBtn.textContent = '🔴 録音中... (話して指を離してください)';
-      statusMsg.textContent = '録音中';
-      finalTranscriptBuffer = '';
-    };
-
-    recognition.onresult = function(event) {
-      var interim = '';
-      for (var i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          finalTranscriptBuffer += event.results[i][0].transcript;
-        } else {
-          interim += event.results[i][0].transcript;
-        }
-      }
-      var currentText = finalTranscriptBuffer + interim;
-      if(currentText) {
-        showText(currentText.trim());
-      }
-    };
-
-    recognition.onerror = function(event) {
-      console.error(event.error);
-      statusMsg.textContent = 'エラー: ' + event.error;
-    };
-
-    recognition.onend = function() {
-      micBtn.classList.remove('recording');
-      micBtn.textContent = '🎤 話す間押し続ける (音声入力)';
-      statusMsg.textContent = '待機中';
-      if(finalTranscriptBuffer) {
-        showText(finalTranscriptBuffer.trim());
-      }
-    };
-
-    var isPressing = false;
-
-    function startRec(e) {
-      e.preventDefault();
-      if(isPressing) return;
-      isPressing = true;
-
-      if(hasActiveText) {
-        showText('');
-      }
-
-      try {
-        recognition.start();
-      } catch(err) {}
-    }
-
-    function endRec(e) {
-      e.preventDefault();
-      if(!isPressing) return;
-      isPressing = false;
-      try {
-        recognition.stop();
-      } catch(err) {}
-    }
-
-    micBtn.addEventListener('mousedown', startRec);
-    micBtn.addEventListener('mouseup', endRec);
-    micBtn.addEventListener('mouseleave', endRec);
-
-    micBtn.addEventListener('touchstart', startRec, {passive: false});
-    micBtn.addEventListener('touchend', endRec, {passive: false});
-    micBtn.addEventListener('touchcancel', endRec, {passive: false});
-
-  } else {
-    micBtn.disabled = true;
-    micBtn.textContent = '🎤 音声非対応ブラウザ';
-  }
-
-  $('clearBtn').onclick = function() {
-    showText('');
-  };
-
-  $('exitBtn').onclick = function() {
-    if(confirm('終了しますか？')) {
-      window.close();
-      location.href = 'about:blank';
-    }
-  };
-
-  // モーダル共通の開閉制御
-  $('manageBtn').onclick = function() {
-    renderPhraseList();
-    $('modal-manage').classList.add('show');
-  };
-  $('settingsBtn').onclick = function() {
-    $('modal-settings').classList.add('show');
-  };
-
-  var closeButtons = document.querySelectorAll('.closeModal');
-  closeButtons.forEach(function(btn){
-    btn.onclick = function() {
-      document.querySelectorAll('.modal').forEach(function(m){ m.classList.remove('show'); });
-    };
-  });
-
-  $('addPhraseBtn').onclick = function() {
-    var val = $('newPhraseInput').value.trim();
-    if(val) {
-      phrases.push(val);
-      lsSet(KEY_PH, phrases);
-      $('newPhraseInput').value = '';
-      renderChips();
-      renderPhraseList();
-    }
-  };
-
-  // 設定変更のリアルタイム反映と保存
-  $('sizeRange').oninput = function() {
-    settings.size = parseInt(this.value);
-    $('sizeVal').textContent = settings.size;
-    lsSet(KEY_SET, settings);
-    applySettings();
-  };
-  $('themeSelect').onchange = function() {
-    settings.theme = this.value;
-    lsSet(KEY_SET, settings);
-    applySettings();
-  };
-  $('fontSelect').onchange = function() {
-    settings.font = this.value;
-    lsSet(KEY_SET, settings);
-    applySettings();
-  };
-
-  // 自動全画面化
-  function triggerFullscreen() {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(function() {});
-    }
-  }
-
-  window.addEventListener('load', function() {
-    triggerFullscreen();
-    applySettings();
-  });
-
-  document.addEventListener('click', function() {
-    triggerFullscreen();
-  }, { once: true });
-
-  renderChips();
-})();
-</script>
-</body>
-</html>
+    <div class="modal-header
