@@ -1,10 +1,11 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1a1a1a">
-<title>筆談くんneo v2</title>
+<title>🖋️筆談くんneo</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;width:100%;height:100%;font-family:"BIZ UDPGothic","Yu Gothic UI","Meiryo",sans-serif;background:#fff;color:#111;overflow:hidden}
@@ -40,6 +41,9 @@ button:disabled{opacity:.45;cursor:not-allowed}
 @keyframes pulse{50%{opacity:.55}}
 #statusMsg{font-size:12px;color:#bbb;min-width:65px}
 #questionBtn{background:#e65100}
+#exclamationBtn{background:#d69b00;color:#111}
+#helpBtn{position:fixed;top:8px;right:8px;z-index:50;background:#176b42;padding:7px 12px;font-size:13px;box-shadow:0 2px 8px #0005}
+#micBtn{touch-action:none;user-select:none;-webkit-user-select:none}
 #clearBtn{background:#555}
 #manageBtn,#settingsBtn{background:#333}
 #editBtn{background:#246b55}
@@ -76,7 +80,7 @@ body.patient-mode #patientExit{display:block}
 @media(max-width:700px){
  #control-area{min-height:0}
  #micBtn{min-width:100%;order:0}
- #questionBtn,#clearBtn,#editBtn,#undoBtn,#manageBtn,#settingsBtn,#replyToggle,#patientModeBtn,#historyBtn,#exitBtn{flex:1;min-width:calc(25% - 8px);font-size:13px;padding:9px 6px}
+ #questionBtn,#exclamationBtn,#clearBtn,#editBtn,#undoBtn,#manageBtn,#settingsBtn,#replyToggle,#patientModeBtn,#historyBtn,#exitBtn{flex:1;min-width:calc(25% - 8px);font-size:13px;padding:9px 6px}
  #statusMsg{flex:1}
  #shown{font-size:6vh}
  .reply-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -102,7 +106,7 @@ body.patient-mode #patientExit{display:block}
   <div id="chips"></div>
   <div class="row">
    <button id="micBtn">🎤 話す間押し続ける（音声入力）</button>
-   <button id="questionBtn">？</button><button id="undoBtn">取消</button>
+   <button id="questionBtn">？</button><button id="exclamationBtn">！</button><button id="undoBtn">取消</button>
    <button id="editBtn">文章編集</button><button id="clearBtn">画面消去</button>
   </div>
   <div class="row">
@@ -115,6 +119,7 @@ body.patient-mode #patientExit{display:block}
 </div>
 <div id="patientModeBanner">患者説明モード</div>
 <button id="patientExit" title="操作画面に戻る">操作画面へ</button>
+<button id="helpBtn" title="操作方法を表示">HELP</button>
 
 <div id="modal-manage" class="modal"><div class="modal-content">
  <div class="modal-header"><span>定型文の編集・管理</span><button class="closeModal secondary">閉じる</button></div>
@@ -147,6 +152,37 @@ body.patient-mode #patientExit{display:block}
  <div class="modal-header"><span>一時履歴</span><button class="closeModal secondary">閉じる</button></div>
  <div class="modal-body"><div id="historyList"></div></div>
  <div class="modal-footer"><button id="clearHistoryBtn" class="danger">履歴を全消去</button></div>
+</div></div>
+
+<div id="modal-help" class="modal"><div class="modal-content">
+ <div class="modal-header"><span>筆談くんneo 操作方法</span><button class="closeModal secondary">閉じる</button></div>
+ <div class="modal-body">
+  <div class="setting-row">
+   <label>1. 音声入力</label>
+   <div>「話す間押し続ける（音声入力）」を押している間、マイクが音声を認識します。話し終えたら指を離してください。指がボタンの外に少しずれても、押し続けている限り認識を継続します。無音などで認識エンジンが自動終了した場合も、押している間は自動的に再開します。</div>
+   <div class="small-note">音声認識はブラウザの機能を利用します。ブラウザや通信環境によっては利用できない場合があります。</div>
+  </div>
+  <div class="setting-row">
+   <label>2. 記号・文章の修正</label>
+   <div>「？」は疑問文、「！」は強調したい文章に使います。ボタンを押すたびに、文章末尾の記号を切り替えます。「取消」は直前の文章に戻します。「文章編集」では表示内容を直接修正できます。「画面消去」は表示中の文章を消します。</div>
+  </div>
+  <div class="setting-row">
+   <label>3. 定型文</label>
+   <div>カテゴリーを選び、表示したい定型文を押します。「定型文」から追加・編集・削除ができます。JSON保存・読み込みで定型文をバックアップできます。</div>
+  </div>
+  <div class="setting-row">
+   <label>4. 患者さんの返答・患者説明モード</label>
+   <div>「患者の返答」で返答ボタンを表示します。「患者説明モード」では操作パネルを隠し、患者さんに見せる画面を広くします。患者さんが返答ボタンを押すと、その内容が操作側に表示されます。右下の「操作画面へ」で戻れます。</div>
+  </div>
+  <div class="setting-row">
+   <label>5. 表示設定・履歴</label>
+   <div>文字サイズ、配色、フォント、自動サイズ調整を変更できます。履歴保存は初期状態でOFFです。保存をONにした場合、文章はこの端末のブラウザ内に保存されます。患者氏名など個人情報を含む文章は保存しないでください。</div>
+  </div>
+  <div class="setting-row">
+   <label>6. 初期画面</label>
+   <div>「初期画面」で表示文章と患者説明モードを初期状態に戻します。</div>
+  </div>
+ </div>
 </div></div>
 
 <script>
@@ -236,37 +272,96 @@ function persistPhrases(){lsSet(KEY_PH,phrases);renderChips();renderPhraseList()
 function openModal(id){$(id).classList.add('show');}
 function closeModals(){var ms=document.querySelectorAll('.modal');for(var i=0;i<ms.length;i++)ms[i].classList.remove('show');}
 var SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+var pointerHeld=false,activePointerId=null,stopRequested=false,restartTimer=null;
 if(SpeechRecognition){
- recognition=new SpeechRecognition();recognition.lang='ja-JP';recognition.interimResults=true;recognition.continuous=false;recognition.maxAlternatives=3;
+ recognition=new SpeechRecognition();recognition.lang='ja-JP';recognition.interimResults=true;recognition.continuous=true;recognition.maxAlternatives=3;
  var finalBuffer='';
- recognition.onstart=function(){recognitionError='';micBtn.classList.add('recording');micBtn.textContent='録音中… 指を離すと終了';setStatus('録音中');};
+ function updateMicButton(recording){
+  micBtn.classList.toggle('recording',!!recording);
+  micBtn.textContent=recording?'録音中… 指を離すと終了':'🎤 話す間押し続ける（音声入力）';
+ }
+ function beginRecognition(){
+  if(!recognition || !pointerHeld || stopRequested)return;
+  try{
+   recognition.start();
+  }catch(err){
+   if(pointerHeld && !stopRequested){
+    if(restartTimer)clearTimeout(restartTimer);
+    restartTimer=setTimeout(beginRecognition,300);
+   }
+  }
+ }
+ recognition.onstart=function(){
+  recognitionError='';updateMicButton(true);setStatus('録音中');
+ };
  recognition.onresult=function(e){
   var interim='';
-  for(var i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)finalBuffer+=e.results[i][0].transcript;else interim+=e.results[i][0].transcript;}
+  for(var i=e.resultIndex;i<e.results.length;i++){
+   if(e.results[i].isFinal)finalBuffer+=e.results[i][0].transcript;
+   else interim+=e.results[i][0].transcript;
+  }
   var combined=(finalBuffer+interim).trim();
-  if(combined){shown.textContent=combined;shown.classList.remove('empty');shown.classList.toggle('interim',!!interim);activeText=combined;fitText();}
+  if(combined){
+   shown.textContent=combined;shown.classList.remove('empty');shown.classList.toggle('interim',!!interim);
+   activeText=combined;fitText();
+  }
  };
- recognition.onerror=function(e){recognitionError=e.error||'認識エラー';setStatus('音声エラー：'+recognitionError);};
+ recognition.onerror=function(e){
+  recognitionError=e.error||'認識エラー';
+  var fatalErrors=['not-allowed','service-not-allowed','audio-capture','network','language-not-supported'];
+  if(fatalErrors.indexOf(recognitionError)>=0){
+   pointerHeld=false;stopRequested=true;
+   if(restartTimer){clearTimeout(restartTimer);restartTimer=null;}
+   setStatus('音声エラー：'+recognitionError);
+  }
+ };
  recognition.onend=function(){
-  micBtn.classList.remove('recording');micBtn.textContent='🎤 話す間押し続ける（音声入力）';
+  if(restartTimer){clearTimeout(restartTimer);restartTimer=null;}
+  if(pointerHeld && !stopRequested){
+   setStatus('認識を再開しています…');
+   restartTimer=setTimeout(beginRecognition,250);
+   return;
+  }
+  updateMicButton(false);
   if(finalBuffer.trim()){showText(finalBuffer,true);setStatus('認識完了');}
   else if(recognitionError){setStatus('エラー：'+recognitionError);}
   else{setStatus('待機中');}
-  isPressing=false;
+  pointerHeld=false;activePointerId=null;stopRequested=false;
  };
  function startRec(e){
-  if(e){e.preventDefault();}if(isPressing)return;isPressing=true;finalBuffer='';recognitionError='';showText('',false);
-  try{recognition.start();}catch(err){isPressing=false;setStatus('音声認識を開始できません');}
+  if(e){e.preventDefault();}
+  if(pointerHeld || !recognition)return;
+  if(e && e.isPrimary===false)return;
+  pointerHeld=true;stopRequested=false;activePointerId=e?e.pointerId:null;
+  finalBuffer='';recognitionError='';showText('',false);
+  if(e && e.pointerId!==undefined){
+   try{micBtn.setPointerCapture(e.pointerId);}catch(err){}
+  }
+  beginRecognition();
  }
- function stopRec(e){if(e)e.preventDefault();if(!isPressing)return;isPressing=false;try{recognition.stop();}catch(err){}}
+ function stopRec(e){
+  if(e){e.preventDefault();}
+  if(!pointerHeld)return;
+  if(e && activePointerId!==null && e.pointerId!==undefined && e.pointerId!==activePointerId)return;
+  pointerHeld=false;stopRequested=true;
+  if(restartTimer){clearTimeout(restartTimer);restartTimer=null;}
+  try{recognition.stop();}catch(err){
+   updateMicButton(false);
+   if(finalBuffer.trim()){showText(finalBuffer,true);setStatus('認識完了');}
+   else{setStatus(recognitionError?'エラー：'+recognitionError:'待機中');}
+   activePointerId=null;stopRequested=false;
+  }
+ }
  micBtn.addEventListener('pointerdown',startRec);
  micBtn.addEventListener('pointerup',stopRec);
- micBtn.addEventListener('pointerleave',stopRec);
  micBtn.addEventListener('pointercancel',stopRec);
+ micBtn.addEventListener('lostpointercapture',function(){});
  micBtn.addEventListener('contextmenu',function(e){e.preventDefault();});
 }else{micBtn.disabled=true;micBtn.textContent='音声認識非対応ブラウザ';setStatus('音声認識非対応');}
 
-$('questionBtn').onclick=function(){if(!activeText)return;var t=activeText.trim();showText(/[？?]$/.test(t)?t.slice(0,-1):t+'？',false);};
+$('questionBtn').onclick=function(){if(!activeText)return;var t=activeText.trim().replace(/[？！!?]+$/,'');showText(t+'？',false);};
+$('exclamationBtn').onclick=function(){if(!activeText)return;var t=activeText.trim().replace(/[？！!?]+$/,'');showText(t+'！',false);};
+$('helpBtn').onclick=function(){openModal('modal-help');};
 $('undoBtn').onclick=function(){if(previousText){var t=activeText;showText(previousText,false);previousText=t;setStatus('直前の文章を復元しました');}else{setStatus('復元できる文章がありません');}};
 $('clearBtn').onclick=function(){if(activeText){if(!confirm('表示中の文章を消去しますか？'))return;showText('',false);setStatus('消去しました');}};
 $('editBtn').onclick=function(){$('editText').value=activeText;openModal('modal-edit');};
