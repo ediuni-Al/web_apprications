@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>筆談ボード</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font-family:"Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif;overflow:hidden}
+button,select,input,textarea{font:inherit}
+button{cursor:pointer;border:1px solid #888;background:#f4f4f4;border-radius:8px;padding:8px 14px}
+button.primary{background:#1a73e8;color:#fff;border-color:#1a73e8}
+button.danger{background:#d93025;color:#fff;border-color:#d93025}
+button.rec-active{background:#d93025!important;color:#fff!important;border-color:#d93025!important;animation:pulse 1.5s infinite}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+/* 全体レイアウト（上下2分割） */
+#app{display:flex;flex-direction:column;height:100vh;width:100vw}
+
+/* 上段：患者用表示画面 */
+#display-area{flex:1;display:flex;flex-direction:column;background:#000;color:#fff;position:relative;min-height:40vh}
+#stage{flex:1;overflow:auto;padding:2vh 3vw;display:flex;align-items:center;justify-content:center;text-align:left}
+#shown{white-space:pre-wrap;word-break:break-word;line-height:1.4;width:100%}
+#shown.empty{opacity:.35;text-align:center}
+
+/* 設定バー */
+#bar{background:#222;color:#eee;padding:6px 12px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:14px;border-top:1px solid #444}
+#bar label{display:flex;align-items:center;gap:6px}
+#bar select,#bar input[type=range]{color:#000}
+#bar input[type=range]{width:140px}
+#bar button{color:#000;padding:4px 10px;font-size:13px}
+#bar .sp{flex:1}
+
+/* 下段：操作・入力エリア */
+#input-area{height:45vh;display:flex;flex-direction:column;padding:12px;gap:8px;background:#f0f4f8;border-top:3px solid #ccc;overflow-y:auto}
+#ta{flex:1;font-size:22px;padding:10px;border:2px solid #aaa;border-radius:8px;resize:none;min-height:80px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row .sp{flex:1}
+#input-area button.big{font-size:18px;padding:10px 20px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:#fff;border:1px solid #bbb;border-radius:16px;padding:5px 10px;font-size:14px}
+.chip:hover{background:#e8f0fe}
+.panel{background:#fff;border:1px solid #ddd;border-radius:8px;padding:8px 10px}
+.panel h3{margin:0 0 4px;font-size:13px;color:#555}
+#hist{max-height:12vh;overflow:auto;display:flex;flex-direction:column;gap:4px}
+#hist .item{display:flex;gap:6px;align-items:center}
+#hist .item span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
+#hist button{padding:2px 6px;font-size:12px}
+#status{font-size:13px;color:#0066cc;font-weight:bold}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- 上段：患者に見せる画面 -->
+  <div id="display-area">
+    <div id="stage"><div id="shown" class="empty">ここに説明が表示されます</div></div>
+    
+    <!-- 設定用コントロールバー -->
+    <div id="bar">
+      <label>文字サイズ <input type="range" id="size" min="24" max="200" step="2"> <b id="sizeVal"></b></label>
+      <label>フォント
+        <select id="font">
+          <option value='"Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif'>ゴシック</option>
+          <option value='"BIZ UDPGothic","BIZ UDGothic","Yu Gothic UI","Meiryo",sans-serif'>UDゴシック</option>
+          <option value='"UD Digital Kyokasho NK-R","UD デジタル 教科書体 NK-R","Yu Gothic UI",sans-serif'>UD教科書体</option>
+          <option value='"Hiragino Maru Gothic ProN","Meiryo",sans-serif'>丸ゴシック</option>
+          <option value='"Yu Mincho","Hiragino Mincho ProN","MS PMincho",serif'>明朝</option>
+        </select>
+      </label>
+      <label>配色
+        <select id="theme">
+          <option value="bw">黒地に白</option>
+          <option value="wb">白地に黒</option>
+          <option value="by">黒地に黄</option>
+          <option value="bg">黒地に緑</option>
+          <option value="nw">紺地に白</option>
+        </select>
+      </label>
+      <label>揃え
+        <select id="align"><option value="left">左</option><option value="center">中央</option></select>
+      </label>
+      <label><input type="checkbox" id="bold"> 太字</label>
+      <span class="sp"></span>
+      <button id="clearDisplay">表示を消す</button>
+    </div>
+  </div>
+
+  <!-- 下段：医師側の操作・入力エリア -->
+  <div id="input-area">
+    <div class="row">
+      <strong>【医師用操作エリア】</strong>
+      <label><input type="checkbox" id="live" checked> リアルタイム表示</label>
+      <span class="sp"></span>
+      <span id="status"></span>
+    </div>
+    
+    <textarea id="ta" placeholder="音声入力またはキーボードで説明を入力します..."></textarea>
+    
+    <div class="row">
+      <button class="big" id="toggleSpeech">🎤 音声入力開始</button>
+      <button class="primary big" id="send">表示更新 (Ctrl+Enter)</button>
+      <button class="big" id="clearBoth">表示クリア</button>
+      <button id="clearTa">入力欄を空にする</button>
+    </div>
+    
+    <div class="panel">
+      <h3>定型文 (クリックで入力欄に追加 / ダブルクリックで即表示)</h3>
+      <div class="chips" id="chips"></div>
+      <div class="row" style="margin-top:6px">
+        <input id="newPhrase" placeholder="定型文を追加" style="flex:1;padding:4px;min-width:180px;font-size:14px">
+        <button id="addPhrase">追加</button>
+        <button id="delPhrase">削除</button>
+      </div>
+    </div>
+    
+    <div class="panel">
+      <h3>履歴</h3>
+      <div id="hist"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY_SET='hitsudan_single_set', KEY_PH='hitsudan_single_phrases', KEY_HIST='hitsudan_single_hist';
+  var $=function(id){return document.getElementById(id)};
+
+  function lsGet(k,d){ try{ var v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
+  function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+
+  /* ===== 主画面設定管理 ===== */
+  var THEMES={bw:['#000','#fff'],wb:['#fff','#000'],by:['#000','#ffe600'],bg:['#000','#40ff70'],nw:['#0b1e4a','#fff']};
+  var set=lsGet(KEY_SET,{size:72,font:$('font').options[0].value,theme:'bw',align:'left',bold:false});
+
+  function applySet(){
+    var th=THEMES[set.theme]||THEMES.bw;
+    var d=$('display-area'), s=$('shown');
+    d.style.background=th[0]; d.style.color=th[1];
+    s.style.fontSize=set.size+'px';
+    s.style.fontFamily=set.font;
+    s.style.textAlign=$('shown').classList.contains('empty')?'center':set.align;
+    s.style.fontWeight=set.bold?'700':'400';
+    $('size').value=set.size; $('sizeVal').textContent=set.size+'px';
+    $('font').value=set.font; $('theme').value=set.theme;
+    $('align').value=set.align; $('bold').checked=!!set.bold;
+  }
+
+  function showText(t){
+    var s=$('shown');
+    if(t && t.length){ s.textContent=t; s.classList.remove('empty'); }
+    else { s.textContent='ここに説明が表示されます'; s.classList.add('empty'); }
+    s.style.fontSize = (s.classList.contains('empty') ? Math.min(set.size,36) : set.size)+'px';
+    s.style.textAlign = s.classList.contains('empty')?'center':set.align;
+  }
+
+  ['size','font','theme','align','bold'].forEach(function(id){
+    $(id).addEventListener('input',function(){
+      set.size=+$('size').value; set.font=$('font').value; set.theme=$('theme').value;
+      set.align=$('align').value; set.bold=$('bold').checked;
+      lsSet(KEY_SET,set);
+      var empty=$('shown').classList.contains('empty');
+      applySet(); if(empty) showText('');
+    });
+  });
+
+  $('clearDisplay').onclick=function(){ showText(''); };
+
+  /* ===== 操作・入力管理 ===== */
+  var ta=$('ta');
+  var phrases=lsGet(KEY_PH,['はい','いいえ','少々お待ちください','痛みはありますか?','これから説明します','わからないところはありますか?','筆談でご案内します']);
+  var hist=lsGet(KEY_HIST,[]);
+
+  function status(t){ $('status').textContent=t; setTimeout(function(){ if($('status').textContent===t) $('status').textContent=''; },2000); }
+
+  function send(text,addHist){
+    showText(text);
+    if(addHist && text.trim()){
+      hist.unshift(text); hist=hist.slice(0,20); lsSet(KEY_HIST,hist); renderHist();
+    }
+    status(text?'表示更新':'クリア');
+  }
+
+  function renderChips(){
+    var c=$('chips'); c.innerHTML='';
+    phrases.forEach(function(p){
+      var b=document.createElement('button'); b.className='chip'; b.textContent=p;
+      b.onclick=function(){ 
+        ta.value+= (ta.value&&!/\n$/.test(ta.value)?' ':'')+p; 
+        ta.focus(); 
+        if($('live').checked) send(ta.value,false); 
+      };
+      b.ondblclick=function(){ ta.value=p; send(p,true); };
+      c.appendChild(b);
+    });
+  }
+
+  function renderHist(){
+    var h=$('hist'); h.innerHTML='';
+    if(!hist.length){ h.textContent='(履歴なし)'; return; }
+    hist.forEach(function(t){
+      var d=document.createElement('div'); d.className='item';
+      var s=document.createElement('span'); s.textContent=t; s.title=t;
+      var b1=document.createElement('button'); b1.textContent='再表示'; b1.onclick=function(){ ta.value=t; send(t,false); };
+      var b2=document.createElement('button'); b2.textContent='編集'; b2.onclick=function(){ ta.value=t; ta.focus(); };
+      d.appendChild(s); d.appendChild(b1); d.appendChild(b2); h.appendChild(d);
+    });
+  }
+
+  /* ===== 音声認識(Web Speech API) ===== */
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var recognition = null;
+  var isRecognizing = false;
+  var speechBtn = $('toggleSpeech');
+  var baseTextBeforeSpeech = '';
+
+  if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.lang = 'ja-JP';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onstart = function() {
+      isRecognizing = true;
+      speechBtn.classList.add('rec-active');
+      speechBtn.textContent = '🔴 音声入力中 (クリックで停止)';
+      baseTextBeforeSpeech = ta.value;
+    };
+
+    recognition.onresult = function(event) {
+      var interimTranscript = '';
+      var finalTranscript = '';
+
+      for (var i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
+      }
+
+      if (finalTranscript) {
+        baseTextBeforeSpeech += (baseTextBeforeSpeech && !/\n$/.test(baseTextBeforeSpeech) ? ' ' : '') + finalTranscript;
+      }
+      
+      ta.value = baseTextBeforeSpeech + (interimTranscript ? (baseTextBeforeSpeech ? ' ' : '') + interimTranscript : '');
+      ta.scrollTop = ta.scrollHeight;
+
+      if ($('live').checked) {
+        send(ta.value, false);
+      }
+    };
+
+    recognition.onerror = function(event) {
+      if (event.error !== 'no-speech') {
+        status('音声認識エラー: ' + event.error);
+      }
+    };
+
+    recognition.onend = function() {
+      isRecognizing = false;
+      speechBtn.classList.remove('rec-active');
+      speechBtn.textContent = '🎤 音声入力開始';
+    };
+
+    speechBtn.onclick = function() {
+      if (isRecognizing) {
+        recognition.stop();
+      } else {
+        try { recognition.start(); } catch(e) {}
+      }
+    };
+  } else {
+    speechBtn.disabled = true;
+    speechBtn.textContent = '🎤 音声非対応ブラウザ';
+  }
+
+  $('send').onclick=function(){ send(ta.value,true); };
+  $('clearBoth').onclick=function(){ ta.value=''; send('',false); };
+  $('clearTa').onclick=function(){ ta.value=''; ta.focus(); if($('live').checked) send('',false); };
+
+  ta.addEventListener('keydown',function(e){
+    if(e.key==='Enter' && (e.ctrlKey||e.metaKey)){ e.preventDefault(); send(ta.value,true); }
+  });
+  ta.addEventListener('input',function(){ if($('live').checked) send(ta.value,false); });
+
+  $('addPhrase').onclick=function(){
+    var v=$('newPhrase').value.trim(); if(!v) return;
+    phrases.push(v); lsSet(KEY_PH,phrases); $('newPhrase').value=''; renderChips();
+  };
+  $('delPhrase').onclick=function(){ phrases.pop(); lsSet(KEY_PH,phrases); renderChips(); };
+
+  /* 初期化 */
+  applySet();
+  renderChips();
+  renderHist();
+})();
+</script>
+</body>
+</html>
