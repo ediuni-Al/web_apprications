@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>音声筆談ボード</title>
+<title>🖌筆談くんneo</title>
 <style>
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; font-family: "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif; background: #000; color: #fff; overflow: hidden; }
@@ -11,23 +11,20 @@ html, body { margin: 0; height: 100%; font-family: "Hiragino Sans", "Yu Gothic U
 /* 全体レイアウト */
 #app { display: flex; flex-direction: column; height: 100vh; width: 100vw; }
 
-/* 上段：患者に見せる巨大表示エリア (十分な高さを確保) */
-#display-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 2vh 4vw; background: #000; overflow-y: auto; }
+/* 上段：患者に見せる巨大表示エリア */
+#display-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 2vh 4vw; background: #000; position: relative; overflow-y: auto; }
 #shown { white-space: pre-wrap; word-break: break-word; line-height: 1.3; width: 100%; text-align: left; font-size: 7vh; font-weight: bold; }
-#shown.empty { opacity: 0.25; text-align: center; font-size: 4vh; }
+#shown.empty { opacity: 0; }
 
-/* 下段：医師側の操作パネル（固定高さ） */
+/* 下段：医師側の操作パネル */
 #control-area { height: 180px; background: #1a1a1a; border-top: 2px solid #333; display: flex; flex-direction: column; padding: 8px 12px; gap: 6px; flex-shrink: 0; }
 
-/* 操作ボタン群行 */
 .row { display: flex; gap: 8px; align-items: center; width: 100%; }
 .row .sp { flex: 1; }
 
-/* ボタン共通デザイン */
 button { font: inherit; cursor: pointer; border: none; border-radius: 10px; padding: 10px 16px; font-size: 16px; font-weight: bold; color: #fff; background: #333; transition: background 0.2s; }
 button:active { transform: scale(0.98); }
 
-/* 音声認識ボタン（メイン） */
 #micBtn { flex: 2; background: #1a73e8; font-size: 18px; padding: 12px; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 50px; }
 #micBtn.recording { background: #d93025 !important; animation: pulse 1.2s infinite; }
 
@@ -37,9 +34,9 @@ button:active { transform: scale(0.98); }
   100% { opacity: 1; }
 }
 
-/* 終了・全画面・クリアボタン */
 #exitBtn { background: #444; font-size: 14px; padding: 8px 12px; }
 #clearBtn { background: #555; font-size: 15px; padding: 8px 14px; }
+#manageBtn { background: #333; font-size: 14px; padding: 8px 12px; }
 
 /* 定型文チップエリア */
 .chips-container { display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; padding-bottom: 2px; align-items: center; width: 100%; }
@@ -49,6 +46,17 @@ button:active { transform: scale(0.98); }
 .chip:active { background: #4a90e2; }
 
 .status-text { font-size: 12px; color: #aaa; }
+
+/* 定型文管理モーダル */
+#modal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; }
+#modal.show { display: flex; }
+.modal-content { background: #222; width: 90vw; max-width: 600px; max-height: 80vh; border-radius: 12px; display: flex; flex-direction: column; padding: 20px; gap: 12px; border: 1px solid #444; }
+.modal-header { font-size: 18px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
+.modal-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.phrase-item { display: flex; justify-content: space-between; align-items: center; background: #333; padding: 8px 12px; border-radius: 8px; font-size: 15px; }
+.phrase-item button { background: #d93025; font-size: 13px; padding: 4px 10px; }
+.modal-footer { display: flex; gap: 8px; align-items: center; }
+.modal-footer input { flex: 1; padding: 10px; font-size: 15px; border-radius: 8px; border: 1px solid #555; background: #111; color: #fff; }
 </style>
 </head>
 <body>
@@ -56,18 +64,17 @@ button:active { transform: scale(0.98); }
 <div id="app">
   <!-- 上段：患者用ディスプレイ -->
   <div id="display-area">
-    <div id="shown" class="empty">ここに筆談内容が表示されます</div>
+    <div id="shown" class="empty"></div>
   </div>
 
   <!-- 下段：操作パネル -->
   <div id="control-area">
-    <!-- 定型文横スクロールバー -->
     <div class="chips-container" id="chips"></div>
 
-    <!-- コントロールボタン行 -->
     <div class="row">
       <button id="micBtn">🎤 話す間押し続ける (音声入力)</button>
       <button id="clearBtn">画面消去</button>
+      <button id="manageBtn">⚙ 定型文編集</button>
       <span class="status-text" id="statusMsg">待機中</span>
       <span class="sp"></span>
       <button id="exitBtn">終了</button>
@@ -75,9 +82,24 @@ button:active { transform: scale(0.98); }
   </div>
 </div>
 
+<!-- 定型文管理モーダル -->
+<div id="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <span>定型文の編集・管理</span>
+      <button id="closeModal" style="background:#555; padding:4px 10px; font-size:14px;">✕ 閉じる</button>
+    </div>
+    <div class="modal-body" id="phraseList"></div>
+    <div class="modal-footer">
+      <input type="text" id="newPhraseInput" placeholder="新しい定型文を入力...">
+      <button id="addPhraseBtn" style="background:#1a73e8;">追加</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (function(){
-  var KEY_PH = 'hitsudan_android_phrases_v2';
+  var KEY_PH = 'hitsudan_neo_phrases_v1';
   var $=function(id){return document.getElementById(id)};
   
   function lsGet(k,d){ try{ var v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
@@ -97,9 +119,9 @@ button:active { transform: scale(0.98); }
   ];
   var phrases = lsGet(KEY_PH, defaultPhrases);
 
-  function showText(text, isNew) {
+  function showText(text) {
     if(!text || !text.trim()) {
-      shown.textContent = 'ここに筆談内容が表示されます';
+      shown.textContent = '';
       shown.classList.add('empty');
       hasActiveText = false;
     } else {
@@ -117,40 +139,39 @@ button:active { transform: scale(0.98); }
       btn.className = 'chip';
       btn.textContent = p;
       btn.onclick = function() {
-        showText(p, true);
+        showText(p);
       };
       container.appendChild(btn);
     });
-
-    var addBtn = document.createElement('button');
-    addBtn.className = 'chip';
-    addBtn.style.background = '#0d47a1';
-    addBtn.textContent = '＋ 定型文追加';
-    addBtn.onclick = function() {
-      var newP = prompt('追加する定型文を入力してください:');
-      if(newP && newP.trim()) {
-        phrases.push(newP.trim());
-        lsSet(KEY_PH, phrases);
-        renderChips();
-      }
-    };
-    container.appendChild(addBtn);
   }
 
-  function formatSentence(text) {
-    text = text.trim();
-    if(!text) return '';
-    var lastChar = text.slice(-1);
-    if(lastChar !== '。' && lastChar !== '？' && lastChar !== '!' && lastChar !== '！') {
-      var questionWords = ['か', 'どう', '誰', '何', 'どこ', 'いつ', 'なぜ', 'どうして', 'いかが', 'ありますか', '痛いですか', '見えますか'];
-      var isQuestion = questionWords.some(function(w){ return text.includes(w); });
-      if(isQuestion) {
-        text += '？';
-      } else {
-        text += '。';
-      }
+  function renderPhraseList() {
+    var list = $('phraseList');
+    list.innerHTML = '';
+    if(phrases.length === 0) {
+      list.innerHTML = '<div style="color:#aaa; text-align:center; padding:20px;">定型文がありません</div>';
+      return;
     }
-    return text;
+    phrases.forEach(function(p, index){
+      var item = document.createElement('div');
+      item.className = 'phrase-item';
+      
+      var span = document.createElement('span');
+      span.textContent = p;
+      
+      var delBtn = document.createElement('button');
+      delBtn.textContent = '削除';
+      delBtn.onclick = function() {
+        phrases.splice(index, 1);
+        lsSet(KEY_PH, phrases);
+        renderChips();
+        renderPhraseList();
+      };
+      
+      item.appendChild(span);
+      item.appendChild(delBtn);
+      list.appendChild(item);
+    });
   }
 
   var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -159,19 +180,31 @@ button:active { transform: scale(0.98); }
   if(SpeechRecognition) {
     recognition = new SpeechRecognition();
     recognition.lang = 'ja-JP';
-    recognition.interimResults = false;
+    recognition.interimResults = true; 
     recognition.maxAlternatives = 1;
+
+    var finalTranscriptBuffer = '';
 
     recognition.onstart = function() {
       micBtn.classList.add('recording');
       micBtn.textContent = '🔴 録音中... (話して指を離してください)';
       statusMsg.textContent = '録音中';
+      finalTranscriptBuffer = '';
     };
 
     recognition.onresult = function(event) {
-      var transcript = event.results[0][0].transcript;
-      var formatted = formatSentence(transcript);
-      showText(formatted, true);
+      var interim = '';
+      for (var i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscriptBuffer += event.results[i][0].transcript;
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      var currentText = finalTranscriptBuffer + interim;
+      if(currentText) {
+        showText(currentText.trim());
+      }
     };
 
     recognition.onerror = function(event) {
@@ -183,6 +216,9 @@ button:active { transform: scale(0.98); }
       micBtn.classList.remove('recording');
       micBtn.textContent = '🎤 話す間押し続ける (音声入力)';
       statusMsg.textContent = '待機中';
+      if(finalTranscriptBuffer) {
+        showText(finalTranscriptBuffer.trim());
+      }
     };
 
     var isPressing = false;
@@ -193,7 +229,7 @@ button:active { transform: scale(0.98); }
       isPressing = true;
 
       if(hasActiveText) {
-        showText('', true);
+        showText('');
       }
 
       try {
@@ -224,7 +260,7 @@ button:active { transform: scale(0.98); }
   }
 
   $('clearBtn').onclick = function() {
-    showText('', true);
+    showText('');
   };
 
   $('exitBtn').onclick = function() {
@@ -234,14 +270,41 @@ button:active { transform: scale(0.98); }
     }
   };
 
-  document.body.addEventListener('click', function() {
-    if(!document.fullscreenElement) {
-      var elem = document.documentElement;
-      if(elem.requestFullscreen) {
-        elem.requestFullscreen().catch(function(){});
-      }
+  $('manageBtn').onclick = function() {
+    renderPhraseList();
+    $('modal').classList.add('show');
+  };
+  $('closeModal').onclick = function() {
+    $('modal').classList.remove('show');
+  };
+  $('addPhraseBtn').onclick = function() {
+    var val = $('newPhraseInput').value.trim();
+    if(val) {
+      phrases.push(val);
+      lsSet(KEY_PH, phrases);
+      $('newPhraseInput').value = '';
+      renderChips();
+      renderPhraseList();
     }
-  }, {once: true});
+  };
+
+  // ページ読み込み時に自動で全画面化を試みる
+  function triggerFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(function() {
+        // ブラウザの制限でブロックされた場合は、最初の画面タッチで全画面化する
+      });
+    }
+  }
+
+  window.addEventListener('load', function() {
+    triggerFullscreen();
+  });
+
+  // 万が一ロード時の自動全画面がブロックされた場合のフォールバック（画面のどこかをタッチした瞬間に全画面化）
+  document.addEventListener('click', function() {
+    triggerFullscreen();
+  }, { once: true });
 
   renderChips();
 })();
