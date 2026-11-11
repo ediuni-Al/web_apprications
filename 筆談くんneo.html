@@ -36,7 +36,7 @@ button:active { transform: scale(0.98); }
 
 #exitBtn { background: #444; font-size: 14px; padding: 8px 12px; }
 #clearBtn { background: #555; font-size: 15px; padding: 8px 14px; }
-#manageBtn { background: #333; font-size: 14px; padding: 8px 12px; }
+#manageBtn, #settingsBtn { background: #333; font-size: 14px; padding: 8px 12px; }
 
 /* 定型文チップエリア */
 .chips-container { display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; padding-bottom: 2px; align-items: center; width: 100%; }
@@ -47,16 +47,21 @@ button:active { transform: scale(0.98); }
 
 .status-text { font-size: 12px; color: #aaa; }
 
-/* 定型文管理モーダル */
-#modal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; }
-#modal.show { display: flex; }
-.modal-content { background: #222; width: 90vw; max-width: 600px; max-height: 80vh; border-radius: 12px; display: flex; flex-direction: column; padding: 20px; gap: 12px; border: 1px solid #444; }
+/* 共通モーダル（定型文・設定） */
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; }
+.modal.show { display: flex; }
+.modal-content { background: #222; width: 90vw; max-width: 600px; max-height: 80vh; border-radius: 12px; display: flex; flex-direction: column; padding: 20px; gap: 12px; border: 1px solid #444; color: #fff; }
 .modal-header { font-size: 18px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
-.modal-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.modal-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
 .phrase-item { display: flex; justify-content: space-between; align-items: center; background: #333; padding: 8px 12px; border-radius: 8px; font-size: 15px; }
 .phrase-item button { background: #d93025; font-size: 13px; padding: 4px 10px; }
 .modal-footer { display: flex; gap: 8px; align-items: center; }
 .modal-footer input { flex: 1; padding: 10px; font-size: 15px; border-radius: 8px; border: 1px solid #555; background: #111; color: #fff; }
+
+/* 設定フォーム用スタイル */
+.setting-row { display: flex; flex-direction: column; gap: 6px; background: #2a2a2a; padding: 12px; border-radius: 8px; }
+.setting-row label { font-size: 14px; color: #ccc; }
+.setting-row select, .setting-row input[type=range] { width: 100%; padding: 8px; font-size: 16px; border-radius: 6px; background: #111; color: #fff; border: 1px solid #555; }
 </style>
 </head>
 <body>
@@ -74,7 +79,8 @@ button:active { transform: scale(0.98); }
     <div class="row">
       <button id="micBtn">🎤 話す間押し続ける (音声入力)</button>
       <button id="clearBtn">画面消去</button>
-      <button id="manageBtn">⚙ 定型文編集</button>
+      <button id="manageBtn">⚙ 定型文</button>
+      <button id="settingsBtn">🎨 表示設定</button>
       <span class="status-text" id="statusMsg">待機中</span>
       <span class="sp"></span>
       <button id="exitBtn">終了</button>
@@ -83,11 +89,11 @@ button:active { transform: scale(0.98); }
 </div>
 
 <!-- 定型文管理モーダル -->
-<div id="modal">
+<div id="modal-manage" class="modal">
   <div class="modal-content">
     <div class="modal-header">
       <span>定型文の編集・管理</span>
-      <button id="closeModal" style="background:#555; padding:4px 10px; font-size:14px;">✕ 閉じる</button>
+      <button class="closeModal" style="background:#555; padding:4px 10px; font-size:14px;">✕ 閉じる</button>
     </div>
     <div class="modal-body" id="phraseList"></div>
     <div class="modal-footer">
@@ -97,20 +103,81 @@ button:active { transform: scale(0.98); }
   </div>
 </div>
 
+<!-- 表示設定モーダル -->
+<div id="modal-settings" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <span>表示設定 (文字・配色)</span>
+      <button class="closeModal" style="background:#555; padding:4px 10px; font-size:14px;">✕ 閉じる</button>
+    </div>
+    <div class="modal-body">
+      <div class="setting-row">
+        <label>文字サイズ (現在: <span id="sizeVal">7</span>vh)</label>
+        <input type="range" id="sizeRange" min="4" max="15" step="1" value="7">
+      </div>
+      <div class="setting-row">
+        <label>配色テーマ</label>
+        <select id="themeSelect">
+          <option value="bw">黒地に白（標準）</option>
+          <option value="wb">白地に黒</option>
+          <option value="by">黒地に黄</option>
+          <option value="nw">紺地に白</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <label>フォント</label>
+        <select id="fontSelect">
+          <option value='"Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif'>ゴシック</option>
+          <option value='"BIZ UDPGothic", "Meiryo", sans-serif'>UDゴシック</option>
+          <option value='"Yu Mincho", "Hiragino Mincho ProN", serif'>明朝体</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 (function(){
   var KEY_PH = 'hitsudan_neo_phrases_v1';
+  var KEY_SET = 'hitsudan_neo_settings_v1';
   var $=function(id){return document.getElementById(id)};
   
   function lsGet(k,d){ try{ var v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
   function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
 
-  var shown=$('shown');
-  var micBtn=$('micBtn');
-  var statusMsg=$('statusMsg');
+  var displayArea = $('display-area');
+  var shown = $('shown');
+  var micBtn = $('micBtn');
+  var statusMsg = $('statusMsg');
   
   var hasActiveText = false;
 
+  // 設定の読み込み・適用
+  var defaultSettings = { size: 7, theme: 'bw', font: '"Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif' };
+  var settings = lsGet(KEY_SET, defaultSettings);
+
+  var THEMES = {
+    bw: { bg: '#000', fg: '#fff' },
+    wb: { bg: '#fff', fg: '#000' },
+    by: { bg: '#000', fg: '#ffe600' },
+    nw: { bg: '#0b1e4a', fg: '#fff' }
+  };
+
+  function applySettings() {
+    var th = THEMES[settings.theme] || THEMES.bw;
+    displayArea.style.background = th.bg;
+    displayArea.style.color = th.fg;
+    shown.style.fontSize = settings.size + 'vh';
+    shown.style.fontFamily = settings.font;
+
+    // 設定画面のUIにも反映
+    $('sizeRange').value = settings.size;
+    $('sizeVal').textContent = settings.size;
+    $('themeSelect').value = settings.theme;
+    $('fontSelect').value = settings.font;
+  }
+
+  // 定型文初期リスト
   var defaultPhrases = [
     'はい', 'いいえ', '少々お待ちください', 
     '痛みはありますか？', 'これから検査を行います', 
@@ -270,13 +337,22 @@ button:active { transform: scale(0.98); }
     }
   };
 
+  // モーダル共通の開閉制御
   $('manageBtn').onclick = function() {
     renderPhraseList();
-    $('modal').classList.add('show');
+    $('modal-manage').classList.add('show');
   };
-  $('closeModal').onclick = function() {
-    $('modal').classList.remove('show');
+  $('settingsBtn').onclick = function() {
+    $('modal-settings').classList.add('show');
   };
+
+  var closeButtons = document.querySelectorAll('.closeModal');
+  closeButtons.forEach(function(btn){
+    btn.onclick = function() {
+      document.querySelectorAll('.modal').forEach(function(m){ m.classList.remove('show'); });
+    };
+  });
+
   $('addPhraseBtn').onclick = function() {
     var val = $('newPhraseInput').value.trim();
     if(val) {
@@ -288,20 +364,36 @@ button:active { transform: scale(0.98); }
     }
   };
 
-  // ページ読み込み時に自動で全画面化を試みる
+  // 設定変更のリアルタイム反映と保存
+  $('sizeRange').oninput = function() {
+    settings.size = parseInt(this.value);
+    $('sizeVal').textContent = settings.size;
+    lsSet(KEY_SET, settings);
+    applySettings();
+  };
+  $('themeSelect').onchange = function() {
+    settings.theme = this.value;
+    lsSet(KEY_SET, settings);
+    applySettings();
+  };
+  $('fontSelect').onchange = function() {
+    settings.font = this.value;
+    lsSet(KEY_SET, settings);
+    applySettings();
+  };
+
+  // 自動全画面化
   function triggerFullscreen() {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(function() {
-        // ブラウザの制限でブロックされた場合は、最初の画面タッチで全画面化する
-      });
+      document.documentElement.requestFullscreen().catch(function() {});
     }
   }
 
   window.addEventListener('load', function() {
     triggerFullscreen();
+    applySettings();
   });
 
-  // 万が一ロード時の自動全画面がブロックされた場合のフォールバック（画面のどこかをタッチした瞬間に全画面化）
   document.addEventListener('click', function() {
     triggerFullscreen();
   }, { once: true });
