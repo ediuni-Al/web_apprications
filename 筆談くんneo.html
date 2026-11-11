@@ -42,7 +42,6 @@ button:disabled{opacity:.45;cursor:not-allowed}
 #statusMsg{font-size:12px;color:#bbb;min-width:65px}
 #questionBtn{background:#e65100}
 #exclamationBtn{background:#d69b00;color:#111}
-#helpBtn{position:fixed;top:8px;right:8px;z-index:50;background:#176b42;padding:7px 12px;font-size:13px;box-shadow:0 2px 8px #0005}
 #micBtn{touch-action:none;user-select:none;-webkit-user-select:none}
 #clearBtn{background:#555}
 #manageBtn,#settingsBtn{background:#333}
@@ -75,7 +74,8 @@ body.patient-mode #display-area{padding:5vh 5vw}
 body.patient-mode #reply-panel{display:block}
 body.patient-mode #displayHint{display:none}
 body.patient-mode #shown{font-size:clamp(34px,8vh,90px)}
-#patientExit{display:none;position:fixed;bottom:12px;right:12px;z-index:30;background:#333;opacity:.18;font-size:12px}
+#patientExit{display:none;position:fixed;bottom:58px;right:12px;z-index:30;background:#333;opacity:.65;font-size:12px}
+#fullscreenBtn{position:fixed;right:12px;bottom:12px;z-index:40;background:#176b42;font-size:13px;padding:9px 13px;box-shadow:0 2px 8px #0005}
 body.patient-mode #patientExit{display:block}
 @media(max-width:700px){
  #control-area{min-height:0}
@@ -112,14 +112,14 @@ body.patient-mode #patientExit{display:block}
   <div class="row">
    <button id="replyToggle">患者の返答</button><button id="patientModeBtn">患者説明モード</button>
    <button id="manageBtn">定型文</button><button id="historyBtn">履歴</button>
-   <button id="settingsBtn">表示設定</button><button id="exitBtn">初期画面</button>
+   <button id="settingsBtn">設定</button><button id="exitBtn">初期画面</button>
    <span class="status-text" id="statusMsg" role="status">待機中</span>
   </div>
  </div>
 </div>
 <div id="patientModeBanner">患者説明モード</div>
 <button id="patientExit" title="操作画面に戻る">操作画面へ</button>
-<button id="helpBtn" title="操作方法を表示">HELP</button>
+<button id="fullscreenBtn" title="全画面表示">全画面表示</button>
 
 <div id="modal-manage" class="modal"><div class="modal-content">
  <div class="modal-header"><span>定型文の編集・管理</span><button class="closeModal secondary">閉じる</button></div>
@@ -139,6 +139,7 @@ body.patient-mode #patientExit{display:block}
   <div class="setting-row"><label>フォント</label><select id="fontSelect"><option value='"BIZ UDPGothic","Meiryo",sans-serif'>UDゴシック</option><option value='"Yu Gothic UI","Meiryo",sans-serif'>ゴシック</option><option value='"Yu Mincho","Hiragino Mincho ProN",serif'>明朝体</option></select></div>
   <div class="setting-row"><label><input type="checkbox" id="autoFit" style="width:auto"> 長文のとき文字サイズを自動調整</label></div>
   <div class="setting-row"><label><input type="checkbox" id="keepHistory" style="width:auto"> 会話履歴をこの端末内に一時保存（最大30件）</label><div class="small-note">初期設定はOFF。患者氏名など個人情報を含む文章は保存しない運用を推奨します。</div></div>
+  <div class="setting-row"><button id="helpBtn" class="green">HELP：操作方法を見る</button></div>
  </div>
 </div></div>
 
@@ -195,7 +196,6 @@ function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}c
 var categories=['基本','検査','白内障','緑内障','網膜','術後','その他'];
 var defaultPhrases=[
  {category:'基本',text:'こんにちは。今日はどうされましたか？'},
- {category:'基本',text:'はい、わかりましたか？'},
  {category:'基本',text:'もう一度説明します。'},
  {category:'検査',text:'これから検査を行います。'},
  {category:'検査',text:'まっすぐ正面の光っているところを見てください。'},
@@ -217,6 +217,9 @@ if(phrases.length && typeof phrases[0]==='string'){
  phrases=phrases.map(function(p){return {category:'その他',text:p};});
  lsSet(KEY_PH,phrases);
 }
+var phraseCountBeforeFilter=phrases.length;
+phrases=phrases.filter(function(p){return p.text!=='はい、わかりましたか？';});
+if(phrases.length!==phraseCountBeforeFilter)lsSet(KEY_PH,phrases);
 var settings=lsGet(KEY_SET,{size:7,theme:'wb',font:'"BIZ UDPGothic","Meiryo",sans-serif',autoFit:true,keepHistory:false});
 var themes={wb:{bg:'#fff',fg:'#000'},bw:{bg:'#000',fg:'#fff'},by:{bg:'#000',fg:'#ffe600'},nw:{bg:'#0b1e4a',fg:'#fff'}};
 var shown=$('shown'),displayArea=$('display-area'),micBtn=$('micBtn'),statusMsg=$('statusMsg');
@@ -362,6 +365,19 @@ if(SpeechRecognition){
 $('questionBtn').onclick=function(){if(!activeText)return;var t=activeText.trim().replace(/[？！!?]+$/,'');showText(t+'？',false);};
 $('exclamationBtn').onclick=function(){if(!activeText)return;var t=activeText.trim().replace(/[？！!?]+$/,'');showText(t+'！',false);};
 $('helpBtn').onclick=function(){openModal('modal-help');};
+function updateFullscreenLabel(){
+ $('fullscreenBtn').textContent=document.fullscreenElement?'全画面を終了':'全画面表示';
+}
+$('fullscreenBtn').onclick=function(){
+ if(!document.fullscreenElement){
+  var el=document.documentElement;
+  if(el.requestFullscreen){el.requestFullscreen().then(updateFullscreenLabel).catch(function(){setStatus('全画面表示に対応していません');});}
+  else{setStatus('このブラウザは全画面表示に対応していません');}
+ }else if(document.exitFullscreen){
+  document.exitFullscreen().then(updateFullscreenLabel).catch(function(){});
+ }
+};
+document.addEventListener('fullscreenchange',updateFullscreenLabel);
 $('undoBtn').onclick=function(){if(previousText){var t=activeText;showText(previousText,false);previousText=t;setStatus('直前の文章を復元しました');}else{setStatus('復元できる文章がありません');}};
 $('clearBtn').onclick=function(){if(activeText){if(!confirm('表示中の文章を消去しますか？'))return;showText('',false);setStatus('消去しました');}};
 $('editBtn').onclick=function(){$('editText').value=activeText;openModal('modal-edit');};
