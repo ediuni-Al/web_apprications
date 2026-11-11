@@ -8,27 +8,27 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; font-family: "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif; background: #000; color: #fff; overflow: hidden; }
 
-/* 全体レイアウト：上下2分割（表示部 75% / 操作部 25%） */
+/* 全体レイアウト */
 #app { display: flex; flex-direction: column; height: 100vh; width: 100vw; }
 
-/* 上段：患者に見せる巨大表示エリア */
-#display-area { flex: 75; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 4vh 5vw; background: #000; position: relative; }
-#shown { white-space: pre-wrap; word-break: break-word; line-height: 1.3; width: 100%; text-align: left; font-size: 8vh; font-weight: bold; }
-#shown.empty { opacity: 0.25; text-align: center; font-size: 5vh; }
+/* 上段：患者に見せる巨大表示エリア (十分な高さを確保) */
+#display-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 2vh 4vw; background: #000; overflow-y: auto; }
+#shown { white-space: pre-wrap; word-break: break-word; line-height: 1.3; width: 100%; text-align: left; font-size: 7vh; font-weight: bold; }
+#shown.empty { opacity: 0.25; text-align: center; font-size: 4vh; }
 
-/* 下段：医師側の操作パネル */
-#control-area { flex: 25; background: #1a1a1a; border-top: 2px solid #333; display: flex; flex-direction: column; padding: 10px 15px; gap: 8px; justify-content: space-between; }
+/* 下段：医師側の操作パネル（固定高さ） */
+#control-area { height: 180px; background: #1a1a1a; border-top: 2px solid #333; display: flex; flex-direction: column; padding: 8px 12px; gap: 6px; flex-shrink: 0; }
 
 /* 操作ボタン群行 */
-.row { display: flex; gap: 10px; align-items: center; width: 100%; }
+.row { display: flex; gap: 8px; align-items: center; width: 100%; }
 .row .sp { flex: 1; }
 
-/* ボタン共通デザイン（タブレットで押しやすい大きさ） */
-button { font: inherit; cursor: pointer; border: none; border-radius: 12px; padding: 12px 20px; font-size: 18px; font-weight: bold; color: #fff; background: #333; transition: background 0.2s; }
+/* ボタン共通デザイン */
+button { font: inherit; cursor: pointer; border: none; border-radius: 10px; padding: 10px 16px; font-size: 16px; font-weight: bold; color: #fff; background: #333; transition: background 0.2s; }
 button:active { transform: scale(0.98); }
 
 /* 音声認識ボタン（メイン） */
-#micBtn { flex: 2; background: #1a73e8; font-size: 20px; padding: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+#micBtn { flex: 2; background: #1a73e8; font-size: 18px; padding: 12px; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 50px; }
 #micBtn.recording { background: #d93025 !important; animation: pulse 1.2s infinite; }
 
 @keyframes pulse {
@@ -38,39 +38,37 @@ button:active { transform: scale(0.98); }
 }
 
 /* 終了・全画面・クリアボタン */
-#exitBtn { background: #444; font-size: 15px; padding: 10px 16px; }
-#clearBtn { background: #555; font-size: 16px; }
+#exitBtn { background: #444; font-size: 14px; padding: 8px 12px; }
+#clearBtn { background: #555; font-size: 15px; padding: 8px 14px; }
 
 /* 定型文チップエリア */
-.chips-container { display: flex; gap: 8px; overflow-x: auto; white-space: nowrap; padding-bottom: 4px; align-items: center; }
-.chips-container::-webkit-scrollbar { height: 4px; }
+.chips-container { display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; padding-bottom: 2px; align-items: center; width: 100%; }
+.chips-container::-webkit-scrollbar { height: 3px; }
 .chips-container::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
-.chip { background: #2c2c2c; border: 1px solid #555; border-radius: 20px; padding: 6px 14px; font-size: 15px; color: #eee; flex-shrink: 0; }
+.chip { background: #2c2c2c; border: 1px solid #555; border-radius: 16px; padding: 5px 12px; font-size: 14px; color: #eee; flex-shrink: 0; }
 .chip:active { background: #4a90e2; }
 
-/* 簡易モーダルや編集用 */
-.status-text { font-size: 13px; color: #aaa; }
+.status-text { font-size: 12px; color: #aaa; }
 </style>
 </head>
 <body>
 
 <div id="app">
   <!-- 上段：患者用ディスプレイ -->
-  <div id="display-area" id="fs-target">
+  <div id="display-area">
     <div id="shown" class="empty">ここに筆談内容が表示されます</div>
   </div>
 
   <!-- 下段：操作パネル -->
   <div id="control-area">
-    <!-- 定型文横スクロールバー (タップで即時表示) -->
+    <!-- 定型文横スクロールバー -->
     <div class="chips-container" id="chips"></div>
 
     <!-- コントロールボタン行 -->
     <div class="row">
-      <!-- 押し続けている間だけ音声認識、離すと確定 -->
       <button id="micBtn">🎤 話す間押し続ける (音声入力)</button>
       <button id="clearBtn">画面消去</button>
-      <span class="status-text" id="statusMsg">状態: 待機中</span>
+      <span class="status-text" id="statusMsg">待機中</span>
       <span class="sp"></span>
       <button id="exitBtn">終了</button>
     </div>
@@ -79,7 +77,7 @@ button:active { transform: scale(0.98); }
 
 <script>
 (function(){
-  var KEY_PH = 'hitsudan_android_phrases';
+  var KEY_PH = 'hitsudan_android_phrases_v2';
   var $=function(id){return document.getElementById(id)};
   
   function lsGet(k,d){ try{ var v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
@@ -89,10 +87,8 @@ button:active { transform: scale(0.98); }
   var micBtn=$('micBtn');
   var statusMsg=$('statusMsg');
   
-  // 状態管理: 0=初期/クリア直後, 1=前回表示あり（次回の音声入力で上書きクリアするフラグ）
   var hasActiveText = false;
 
-  // 定型文の初期リスト
   var defaultPhrases = [
     'はい', 'いいえ', '少々お待ちください', 
     '痛みはありますか？', 'これから検査を行います', 
@@ -101,25 +97,18 @@ button:active { transform: scale(0.98); }
   ];
   var phrases = lsGet(KEY_PH, defaultPhrases);
 
-  // 画面表示を更新する関数
   function showText(text, isNew) {
     if(!text || !text.trim()) {
       shown.textContent = 'ここに筆談内容が表示されます';
       shown.classList.add('empty');
       hasActiveText = false;
     } else {
-      if(isNew) {
-        shown.textContent = text.trim();
-      } else {
-        // 追記が必要な場合の処理（今回は上書きメイン）
-        shown.textContent = text.trim();
-      }
+      shown.textContent = text.trim();
       shown.classList.remove('empty');
       hasActiveText = true;
     }
   }
 
-  // 定型文チップの描画
   function renderChips() {
     var container = $('chips');
     container.innerHTML = '';
@@ -127,18 +116,16 @@ button:active { transform: scale(0.98); }
       var btn = document.createElement('button');
       btn.className = 'chip';
       btn.textContent = p;
-      // タップで即時新規表示
       btn.onclick = function() {
         showText(p, true);
       };
       container.appendChild(btn);
     });
 
-    // 最後に「＋定型文追加」ボタンを置く
     var addBtn = document.createElement('button');
     addBtn.className = 'chip';
     addBtn.style.background = '#0d47a1';
-    addBtn.textContent = '＋ 定型文追加/管理';
+    addBtn.textContent = '＋ 定型文追加';
     addBtn.onclick = function() {
       var newP = prompt('追加する定型文を入力してください:');
       if(newP && newP.trim()) {
@@ -150,17 +137,13 @@ button:active { transform: scale(0.98); }
     container.appendChild(addBtn);
   }
 
-  // 句点・疑問符の自動認識・補正（疑問詞や口調の検出）
   function formatSentence(text) {
     text = text.trim();
     if(!text) return '';
-    
-    // 末尾に句読点や疑問符がない場合、疑問詞があれば「？」、なければ「。」を付与
     var lastChar = text.slice(-1);
     if(lastChar !== '。' && lastChar !== '？' && lastChar !== '!' && lastChar !== '！') {
       var questionWords = ['か', 'どう', '誰', '何', 'どこ', 'いつ', 'なぜ', 'どうして', 'いかが', 'ありますか', '痛いですか', '見えますか'];
       var isQuestion = questionWords.some(function(w){ return text.includes(w); });
-      
       if(isQuestion) {
         text += '？';
       } else {
@@ -170,34 +153,30 @@ button:active { transform: scale(0.98); }
     return text;
   }
 
-  // ===== 音声認識 (Web Speech API) の設定 =====
   var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   var recognition = null;
 
   if(SpeechRecognition) {
     recognition = new SpeechRecognition();
     recognition.lang = 'ja-JP';
-    recognition.interimResults = false; // 確定結果のみ利用
+    recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
     recognition.onstart = function() {
       micBtn.classList.add('recording');
       micBtn.textContent = '🔴 録音中... (話して指を離してください)';
-      statusMsg.textContent = '音声認識中';
+      statusMsg.textContent = '録音中';
     };
 
     recognition.onresult = function(event) {
       var transcript = event.results[0][0].transcript;
       var formatted = formatSentence(transcript);
-
-      // 要件: 「もう一度音声認識ボタンを押したら、表示文書は消去、ボタンを離したら新規表示にて」
-      // 今回の「押して離す」仕様では、ボタンを押した瞬間に前回のテキストをクリアし、離して確定したテキストを新規表示する。
       showText(formatted, true);
     };
 
     recognition.onerror = function(event) {
       console.error(event.error);
-      statusMsg.textContent = '認識エラー: ' + event.error;
+      statusMsg.textContent = 'エラー: ' + event.error;
     };
 
     recognition.onend = function() {
@@ -206,7 +185,6 @@ button:active { transform: scale(0.98); }
       statusMsg.textContent = '待機中';
     };
 
-    // タッチ＆マウスイベントによる「押している間だけ認識」の実装
     var isPressing = false;
 
     function startRec(e) {
@@ -214,17 +192,13 @@ button:active { transform: scale(0.98); }
       if(isPressing) return;
       isPressing = true;
 
-      // ボタンを押した瞬間に、次回新規表示の準備として画面を一旦クリア（またはクリア予約）する
-      // ※「もう一度音声認識ボタンを押したら、表示文書は消去...ボタンを離したら新規表示」
       if(hasActiveText) {
-        showText('', true); // 押した瞬間に消去
+        showText('', true);
       }
 
       try {
         recognition.start();
-      } catch(err) {
-        // すでに開始している場合の保護
-      }
+      } catch(err) {}
     }
 
     function endRec(e) {
@@ -236,36 +210,30 @@ button:active { transform: scale(0.98); }
       } catch(err) {}
     }
 
-    // PC用マウスイベント
     micBtn.addEventListener('mousedown', startRec);
     micBtn.addEventListener('mouseup', endRec);
     micBtn.addEventListener('mouseleave', endRec);
 
-    // Androidタブレット用タッチイベント
     micBtn.addEventListener('touchstart', startRec, {passive: false});
     micBtn.addEventListener('touchend', endRec, {passive: false});
     micBtn.addEventListener('touchcancel', endRec, {passive: false});
 
   } else {
     micBtn.disabled = true;
-    micBtn.textContent = '🎤 このブラウザは音声非対応です';
+    micBtn.textContent = '🎤 音声非対応ブラウザ';
   }
 
-  // 画面消去ボタン
   $('clearBtn').onclick = function() {
     showText('', true);
   };
 
-  // 終了ボタン
   $('exitBtn').onclick = function() {
-    if(confirm('筆談ボードを終了しますか？')) {
+    if(confirm('終了しますか？')) {
       window.close();
-      // 閉じられない環境用のフォールバック
       location.href = 'about:blank';
     }
   };
 
-  // タップ時に自動でフルスクリーンに入る仕組み（Androidタブレット向け）
   document.body.addEventListener('click', function() {
     if(!document.fullscreenElement) {
       var elem = document.documentElement;
@@ -275,7 +243,6 @@ button:active { transform: scale(0.98); }
     }
   }, {once: true});
 
-  // 初期化
   renderChips();
 })();
 </script>
