@@ -18,37 +18,26 @@ button:disabled{opacity:.45;cursor:not-allowed}
 #shown{width:100%;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.42;font-size:7vh;font-weight:700;text-align:left}
 #shown.empty{visibility:hidden}
 #shown.interim{opacity:.58}
+#shown[contenteditable="true"]{outline:none;cursor:text}
+#shown[contenteditable="true"]:focus{outline:2px dashed rgba(100,140,190,.55);outline-offset:5px}
 #displayHint{position:absolute;top:8px;right:12px;font-size:12px;opacity:.5}
-#reply-panel{display:none;flex-shrink:0;padding:10px;background:rgba(120,120,120,.08);border-radius:12px;margin-top:12px}
-#reply-panel.visible{display:block}
-.reply-title{font-size:14px;font-weight:bold;margin:0 0 8px}
-.reply-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.reply-grid button{min-height:54px;font-size:clamp(15px,2.3vh,22px);background:#245c9c}
-.reply-grid button:nth-child(1){background:#176b42}.reply-grid button:nth-child(2){background:#a52b2b}
-.reply-grid button:nth-child(3){background:#555}.reply-grid button:nth-child(4){background:#805515}
-.reply-grid button:nth-child(5){background:#555}.reply-grid button:nth-child(6){background:#555}
 #control-area{flex-shrink:0;min-height:160px;background:#1a1a1a;color:#fff;border-top:2px solid #333;display:flex;flex-direction:column;padding:8px 12px max(10px,env(safe-area-inset-bottom));gap:8px}
-#control-area.hidden{display:none}
 .row{display:flex;gap:8px;align-items:center;width:100%;flex-wrap:wrap}
 #chips{display:flex;gap:6px;overflow-x:auto;white-space:nowrap;padding:2px 0;width:100%;min-height:36px}
 .chip{flex-shrink:0;background:#2c2c2c;border:1px solid #555;border-radius:18px;padding:7px 13px;font-size:14px;color:#eee}
 .chip:active{background:#4a90e2}
-#categoryBar{display:flex;gap:6px;overflow-x:auto}
+#categoryBar{display:flex;gap:6px;overflow-x:auto;flex:1;min-width:0}
 .category{flex-shrink:0;background:#444;padding:6px 11px;font-size:13px}
 .category.active{background:#1a73e8}
-#micBtn{flex:2;min-width:190px;background:#1a73e8;font-size:17px;min-height:48px}
+.phrase-controls{align-items:center}
+#micBtn{flex:2;min-width:190px;background:#1a73e8;font-size:17px;min-height:48px;touch-action:none;user-select:none;-webkit-user-select:none}
 #micBtn.recording{background:#d93025;animation:pulse 1.2s infinite}
 @keyframes pulse{50%{opacity:.55}}
 #statusMsg{font-size:12px;color:#bbb;min-width:65px}
 #questionBtn{background:#e65100}
 #exclamationBtn{background:#d69b00;color:#111}
-#micBtn{touch-action:none;user-select:none;-webkit-user-select:none}
 #clearBtn{background:#555}
 #manageBtn,#settingsBtn{background:#333}
-#editBtn{background:#246b55}
-#undoBtn{background:#5b4b8a}
-#replyToggle{background:#245c9c}
-#patientModeBtn{background:#805515}
 #historyBtn{background:#444}
 #exitBtn{background:#444}
 .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.84);z-index:100;justify-content:center;align-items:center;padding:12px}
@@ -58,32 +47,24 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .modal-body{overflow:auto;display:flex;flex-direction:column;gap:10px;min-height:0}
 .modal-footer{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .modal input,.modal select,.modal textarea{width:100%;padding:10px;border-radius:7px;border:1px solid #666;background:#111;color:#fff;font-size:16px}
-.modal textarea{min-height:120px;resize:vertical}
 .phrase-item,.history-item{display:flex;gap:8px;align-items:center;background:#333;padding:9px;border-radius:8px}
 .phrase-item span,.history-item span{flex:1;overflow-wrap:anywhere}
 .phrase-item button,.history-item button{padding:6px 9px;font-size:13px}
-.danger{background:#a52b2b}.primary{background:#1a73e8}.secondary{background:#555}.green{background:#176b42}
+.danger{background:#a52b2b}
+.primary{background:#1a73e8}
+.secondary{background:#555}
+.green{background:#176b42}
 .setting-row{display:flex;flex-direction:column;gap:6px;background:#2a2a2a;padding:11px;border-radius:8px}
 .setting-row label{font-size:14px;color:#ddd}
 .setting-row input[type=range]{width:100%}
 .small-note{font-size:12px;color:#bbb;line-height:1.5}
-#patientModeBanner{display:none;position:fixed;top:8px;left:8px;z-index:20;background:#176b42;color:#fff;border-radius:7px;padding:6px 10px;font-size:12px}
-body.patient-mode #patientModeBanner{display:block}
-body.patient-mode #control-area{display:none}
-body.patient-mode #display-area{padding:5vh 5vw}
-body.patient-mode #reply-panel{display:block}
-body.patient-mode #displayHint{display:none}
-body.patient-mode #shown{font-size:clamp(34px,8vh,90px)}
-#patientExit{display:none;position:fixed;bottom:58px;right:12px;z-index:30;background:#333;opacity:.65;font-size:12px}
 #fullscreenBtn{position:fixed;right:12px;bottom:12px;z-index:40;background:#176b42;font-size:13px;padding:9px 13px;box-shadow:0 2px 8px #0005}
-body.patient-mode #patientExit{display:block}
 @media(max-width:700px){
  #control-area{min-height:0}
  #micBtn{min-width:100%;order:0}
- #questionBtn,#exclamationBtn,#clearBtn,#editBtn,#undoBtn,#manageBtn,#settingsBtn,#replyToggle,#patientModeBtn,#historyBtn,#exitBtn{flex:1;min-width:calc(25% - 8px);font-size:13px;padding:9px 6px}
+ #questionBtn,#exclamationBtn,#clearBtn,#manageBtn,#settingsBtn,#historyBtn,#exitBtn{flex:1;min-width:calc(25% - 8px);font-size:13px;padding:9px 6px}
  #statusMsg{flex:1}
  #shown{font-size:6vh}
- .reply-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 </style>
 </head>
@@ -91,109 +72,170 @@ body.patient-mode #patientExit{display:block}
 <div id="app">
  <div id="display-area">
   <div id="displayHint">患者向け表示</div>
-  <div id="shown" class="empty" aria-live="polite"></div>
-  <div id="reply-panel">
-   <div class="reply-title">返答してください（押すと医師側に表示されます）</div>
-   <div class="reply-grid">
-    <button data-reply="はい">はい</button><button data-reply="いいえ">いいえ</button>
-    <button data-reply="わかりました">わかりました</button><button data-reply="もう一度お願いします">もう一度お願いします</button>
-    <button data-reply="質問があります">質問があります</button><button data-reply="痛みがあります">痛みがあります</button>
-   </div>
-  </div>
+  <div id="shown" class="empty" contenteditable="true" role="textbox" aria-label="表示文章。クリックして直接編集できます" aria-multiline="true" spellcheck="false"></div>
  </div>
+
  <div id="control-area">
-  <div id="categoryBar"></div>
-  <div id="chips"></div>
   <div class="row">
    <button id="micBtn">🎤 話す間押し続ける（音声入力）</button>
-   <button id="questionBtn">？</button><button id="exclamationBtn">！</button><button id="undoBtn">取消</button>
-   <button id="editBtn">文章編集</button><button id="clearBtn">画面消去</button>
+   <button id="questionBtn">？</button>
+   <button id="exclamationBtn">！</button>
+   <button id="clearBtn">画面消去</button>
   </div>
+
   <div class="row">
-   <button id="replyToggle">患者の返答</button><button id="patientModeBtn">患者説明モード</button>
-   <button id="manageBtn">定型文</button><button id="historyBtn">履歴</button>
-   <button id="settingsBtn">設定</button><button id="exitBtn">初期画面</button>
-   <span class="status-text" id="statusMsg" role="status">待機中</span>
+   <button id="historyBtn">履歴</button>
+   <button id="settingsBtn">設定</button>
+   <button id="exitBtn">初期画面</button>
+   <span id="statusMsg" role="status">待機中</span>
+  </div>
+
+  <div class="row phrase-controls">
+   <button id="manageBtn">定型文管理</button>
+   <div id="categoryBar"></div>
+  </div>
+  <div id="chips"></div>
+ </div>
+</div>
+
+<button id="fullscreenBtn" title="全画面表示">全画面表示</button>
+
+<div id="modal-manage" class="modal">
+ <div class="modal-content">
+  <div class="modal-header">
+   <span>定型文の編集・管理</span>
+   <button class="closeModal secondary">閉じる</button>
+  </div>
+  <div class="modal-body">
+   <div class="setting-row">
+    <label for="phraseCategory">カテゴリー</label>
+    <select id="phraseCategory"></select>
+   </div>
+   <div id="phraseList"></div>
+  </div>
+  <div class="modal-footer">
+   <input type="text" id="newPhraseInput" placeholder="新しい定型文を入力">
+   <button id="addPhraseBtn" class="primary">追加</button>
+  </div>
+  <div class="modal-footer">
+   <button id="exportBtn">定型文をJSON保存</button>
+   <button id="importBtn">JSON読み込み</button>
+   <input type="file" id="importFile" accept=".json,application/json" hidden>
   </div>
  </div>
 </div>
-<div id="patientModeBanner">患者説明モード</div>
-<button id="patientExit" title="操作画面に戻る">操作画面へ</button>
-<button id="fullscreenBtn" title="全画面表示">全画面表示</button>
 
-<div id="modal-manage" class="modal"><div class="modal-content">
- <div class="modal-header"><span>定型文の編集・管理</span><button class="closeModal secondary">閉じる</button></div>
- <div class="modal-body">
-  <div class="setting-row"><label for="phraseCategory">カテゴリー</label><select id="phraseCategory"></select></div>
-  <div id="phraseList"></div>
- </div>
- <div class="modal-footer"><input type="text" id="newPhraseInput" placeholder="新しい定型文を入力"><button id="addPhraseBtn" class="primary">追加</button></div>
- <div class="modal-footer"><button id="exportBtn">定型文をJSON保存</button><button id="importBtn">JSON読み込み</button><input type="file" id="importFile" accept=".json,application/json" hidden></div>
-</div></div>
-
-<div id="modal-settings" class="modal"><div class="modal-content">
- <div class="modal-header"><span>表示設定</span><button class="closeModal secondary">閉じる</button></div>
- <div class="modal-body">
-  <div class="setting-row"><label>文字サイズ：<span id="sizeVal">7</span>vh</label><input type="range" id="sizeRange" min="4" max="15" step="1" value="7"></div>
-  <div class="setting-row"><label>配色テーマ</label><select id="themeSelect"><option value="wb">白地に黒</option><option value="bw">黒地に白</option><option value="by">黒地に黄</option><option value="nw">紺地に白</option></select></div>
-  <div class="setting-row"><label>フォント</label><select id="fontSelect"><option value='"BIZ UDPGothic","Meiryo",sans-serif'>UDゴシック</option><option value='"Yu Gothic UI","Meiryo",sans-serif'>ゴシック</option><option value='"Yu Mincho","Hiragino Mincho ProN",serif'>明朝体</option></select></div>
-  <div class="setting-row"><label><input type="checkbox" id="autoFit" style="width:auto"> 長文のとき文字サイズを自動調整</label></div>
-  <div class="setting-row"><label><input type="checkbox" id="keepHistory" style="width:auto"> 会話履歴をこの端末内に一時保存（最大30件）</label><div class="small-note">初期設定はOFF。患者氏名など個人情報を含む文章は保存しない運用を推奨します。</div></div>
-  <div class="setting-row"><button id="helpBtn" class="green">HELP：操作方法を見る</button></div>
- </div>
-</div></div>
-
-<div id="modal-edit" class="modal"><div class="modal-content">
- <div class="modal-header"><span>表示文章の編集</span><button class="closeModal secondary">閉じる</button></div>
- <div class="modal-body"><textarea id="editText" placeholder="患者さんに見せる文章を入力・修正"></textarea></div>
- <div class="modal-footer"><button id="saveEditBtn" class="primary">表示に反映</button><button class="closeModal secondary">キャンセル</button></div>
-</div></div>
-
-<div id="modal-history" class="modal"><div class="modal-content">
- <div class="modal-header"><span>一時履歴</span><button class="closeModal secondary">閉じる</button></div>
- <div class="modal-body"><div id="historyList"></div></div>
- <div class="modal-footer"><button id="clearHistoryBtn" class="danger">履歴を全消去</button></div>
-</div></div>
-
-<div id="modal-help" class="modal"><div class="modal-content">
- <div class="modal-header"><span>筆談くんneo 操作方法</span><button class="closeModal secondary">閉じる</button></div>
- <div class="modal-body">
-  <div class="setting-row">
-   <label>1. 音声入力</label>
-   <div>「話す間押し続ける（音声入力）」を押している間、マイクが音声を認識します。話し終えたら指を離してください。指がボタンの外に少しずれても、押し続けている限り認識を継続します。無音などで認識エンジンが自動終了した場合も、押している間は自動的に再開します。</div>
-   <div class="small-note">音声認識はブラウザの機能を利用します。ブラウザや通信環境によっては利用できない場合があります。</div>
+<div id="modal-settings" class="modal">
+ <div class="modal-content">
+  <div class="modal-header">
+   <span>表示設定</span>
+   <button class="closeModal secondary">閉じる</button>
   </div>
-  <div class="setting-row">
-   <label>2. 記号・文章の修正</label>
-   <div>「？」は疑問文、「！」は強調したい文章に使います。ボタンを押すたびに、文章末尾の記号を切り替えます。「取消」は直前の文章に戻します。「文章編集」では表示内容を直接修正できます。「画面消去」は表示中の文章を消します。</div>
-  </div>
-  <div class="setting-row">
-   <label>3. 定型文</label>
-   <div>カテゴリーを選び、表示したい定型文を押します。「定型文」から追加・編集・削除ができます。JSON保存・読み込みで定型文をバックアップできます。</div>
-  </div>
-  <div class="setting-row">
-   <label>4. 患者さんの返答・患者説明モード</label>
-   <div>「患者の返答」で返答ボタンを表示します。「患者説明モード」では操作パネルを隠し、患者さんに見せる画面を広くします。患者さんが返答ボタンを押すと、その内容が操作側に表示されます。右下の「操作画面へ」で戻れます。</div>
-  </div>
-  <div class="setting-row">
-   <label>5. 表示設定・履歴</label>
-   <div>文字サイズ、配色、フォント、自動サイズ調整を変更できます。履歴保存は初期状態でOFFです。保存をONにした場合、文章はこの端末のブラウザ内に保存されます。患者氏名など個人情報を含む文章は保存しないでください。</div>
-  </div>
-  <div class="setting-row">
-   <label>6. 初期画面</label>
-   <div>「初期画面」で表示文章と患者説明モードを初期状態に戻します。</div>
+  <div class="modal-body">
+   <div class="setting-row">
+    <label>文字サイズ：<span id="sizeVal">7</span>vh</label>
+    <input type="range" id="sizeRange" min="4" max="15" step="1" value="7">
+   </div>
+   <div class="setting-row">
+    <label>配色テーマ</label>
+    <select id="themeSelect">
+     <option value="wb">白地に黒</option>
+     <option value="bw">黒地に白</option>
+     <option value="by">黒地に黄</option>
+     <option value="nw">紺地に白</option>
+    </select>
+   </div>
+   <div class="setting-row">
+    <label>フォント</label>
+    <select id="fontSelect">
+     <option value='"BIZ UDPGothic","Meiryo",sans-serif'>UDゴシック</option>
+     <option value='"Yu Gothic UI","Meiryo",sans-serif'>ゴシック</option>
+     <option value='"Yu Mincho","Hiragino Mincho ProN",serif'>明朝体</option>
+    </select>
+   </div>
+   <div class="setting-row">
+    <label><input type="checkbox" id="autoFit" style="width:auto"> 長文のとき文字サイズを自動調整</label>
+   </div>
+   <div class="setting-row">
+    <label><input type="checkbox" id="keepHistory" style="width:auto"> 会話履歴をこの端末内に一時保存（最大30件）</label>
+    <div class="small-note">初期設定はOFF。患者氏名など個人情報を含む文章は保存しない運用を推奨します。</div>
+   </div>
+   <div class="setting-row">
+    <button id="helpBtn" class="green">HELP：操作方法を見る</button>
+   </div>
   </div>
  </div>
-</div></div>
+</div>
+
+<div id="modal-history" class="modal">
+ <div class="modal-content">
+  <div class="modal-header">
+   <span>一時履歴</span>
+   <button class="closeModal secondary">閉じる</button>
+  </div>
+  <div class="modal-body"><div id="historyList"></div></div>
+  <div class="modal-footer">
+   <button id="clearHistoryBtn" class="danger">履歴を全消去</button>
+  </div>
+ </div>
+</div>
+
+<div id="modal-help" class="modal">
+ <div class="modal-content">
+  <div class="modal-header">
+   <span>筆談くんneo 操作方法</span>
+   <button class="closeModal secondary">閉じる</button>
+  </div>
+  <div class="modal-body">
+   <div class="setting-row">
+    <label>1. 音声入力</label>
+    <div>「話す間押し続ける（音声入力）」を押している間、マイクが音声を認識します。話し終えたら指を離してください。指がボタンの外に少しずれても、押し続けている限り認識を継続します。無音などで認識エンジンが自動終了した場合も、押している間は自動的に再開します。</div>
+    <div class="small-note">音声認識はブラウザの機能を利用します。ブラウザや通信環境によっては利用できない場合があります。</div>
+   </div>
+   <div class="setting-row">
+    <label>2. 記号・文章の修正</label>
+    <div>「？」は疑問文、「！」は強調したい文章に使います。ボタンを押すたびに、文章末尾の記号を切り替えます。表示エリアの文章をクリックすると、直接修正できます。「画面消去」は表示中の文章を消します。</div>
+   </div>
+   <div class="setting-row">
+    <label>3. 定型文</label>
+    <div>画面下部のカテゴリーを選び、表示したい定型文を押します。「定型文管理」から追加・編集・削除ができます。JSON保存・読み込みで定型文をバックアップできます。</div>
+   </div>
+   <div class="setting-row">
+    <label>4. 表示設定・履歴</label>
+    <div>文字サイズ、配色、フォント、自動サイズ調整を変更できます。履歴保存は初期状態でOFFです。保存をONにした場合、文章はこの端末のブラウザ内に保存されます。患者氏名など個人情報を含む文章は保存しないでください。</div>
+   </div>
+   <div class="setting-row">
+    <label>5. 初期画面</label>
+    <div>「初期画面」で表示文章を消去し、待機状態に戻します。</div>
+   </div>
+  </div>
+ </div>
+</div>
 
 <script>
 (function(){
 'use strict';
+
 var $=function(id){return document.getElementById(id);};
-var KEY_PH='hitsudan_neo_phrases_v3',KEY_SET='hitsudan_neo_settings_v3',KEY_HIST='hitsudan_neo_history_v1';
-function lsGet(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
-function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){return false;}}
+var KEY_PH='hitsudan_neo_phrases_v3';
+var KEY_SET='hitsudan_neo_settings_v3';
+var KEY_HIST='hitsudan_neo_history_v1';
+
+function lsGet(k,d){
+ try{
+  var v=localStorage.getItem(k);
+  return v?JSON.parse(v):d;
+ }catch(e){return d;}
+}
+function lsSet(k,v){
+ try{
+  localStorage.setItem(k,JSON.stringify(v));
+  return true;
+ }catch(e){return false;}
+}
+
 var categories=['基本','検査','白内障','緑内障','網膜','術後','その他'];
+
 var defaultPhrases=[
  {category:'基本',text:'こんにちは。今日はどうされましたか？'},
  {category:'基本',text:'もう一度説明します。'},
@@ -212,77 +254,225 @@ var defaultPhrases=[
  {category:'術後',text:'点眼を指示どおり続けてください。'},
  {category:'その他',text:'待合室でしばらくお待ちください。'}
 ];
+
 var phrases=lsGet(KEY_PH,defaultPhrases);
+
 if(phrases.length && typeof phrases[0]==='string'){
- phrases=phrases.map(function(p){return {category:'その他',text:p};});
+ phrases=phrases.map(function(p){
+  return {category:'その他',text:p};
+ });
  lsSet(KEY_PH,phrases);
 }
+
 var phraseCountBeforeFilter=phrases.length;
-phrases=phrases.filter(function(p){return p.text!=='はい、わかりましたか？';});
+phrases=phrases.filter(function(p){
+ return p.text!=='はい、わかりましたか？';
+});
 if(phrases.length!==phraseCountBeforeFilter)lsSet(KEY_PH,phrases);
-var settings=lsGet(KEY_SET,{size:7,theme:'wb',font:'"BIZ UDPGothic","Meiryo",sans-serif',autoFit:true,keepHistory:false});
-var themes={wb:{bg:'#fff',fg:'#000'},bw:{bg:'#000',fg:'#fff'},by:{bg:'#000',fg:'#ffe600'},nw:{bg:'#0b1e4a',fg:'#fff'}};
-var shown=$('shown'),displayArea=$('display-area'),micBtn=$('micBtn'),statusMsg=$('statusMsg');
-var activeText='',previousText='',selectedCategory='基本',recognition=null,isPressing=false,recognitionError='',history=lsGet(KEY_HIST,[]);
-function setStatus(s){statusMsg.textContent=s;}
+
+var settings=lsGet(KEY_SET,{
+ size:7,
+ theme:'wb',
+ font:'"BIZ UDPGothic","Meiryo",sans-serif',
+ autoFit:true,
+ keepHistory:false
+});
+
+var themes={
+ wb:{bg:'#fff',fg:'#000'},
+ bw:{bg:'#000',fg:'#fff'},
+ by:{bg:'#000',fg:'#ffe600'},
+ nw:{bg:'#0b1e4a',fg:'#fff'}
+};
+
+var shown=$('shown');
+var displayArea=$('display-area');
+var micBtn=$('micBtn');
+var statusMsg=$('statusMsg');
+
+var activeText='';
+var selectedCategory='基本';
+var recognition=null;
+var recognitionError='';
+var history=lsGet(KEY_HIST,[]);
+
+function setStatus(s){
+ statusMsg.textContent=s;
+}
+
 function fitText(){
  var size=Number(settings.size)||7;
- if(settings.autoFit && activeText.length>70) size=Math.max(4,size*Math.sqrt(70/activeText.length));
+ if(settings.autoFit && activeText.length>70){
+  size=Math.max(4,size*Math.sqrt(70/activeText.length));
+ }
  shown.style.fontSize=size+'vh';
 }
+
 function showText(text,saveHistory){
  text=String(text||'').trim();
- if(text!==activeText && activeText){previousText=activeText;}
- activeText=text;shown.textContent=text;shown.classList.toggle('empty',!text);shown.classList.remove('interim');
+ activeText=text;
+ shown.textContent=text;
+ shown.classList.toggle('empty',!text);
+ shown.classList.remove('interim');
  fitText();
- if(text && saveHistory && settings.keepHistory){history.unshift({text:text,time:new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})});history=history.slice(0,30);lsSet(KEY_HIST,history);}
+
+ if(text && saveHistory && settings.keepHistory){
+  history.unshift({
+   text:text,
+   time:new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})
+  });
+  history=history.slice(0,30);
+  lsSet(KEY_HIST,history);
+ }
 }
+
 function applySettings(){
  var th=themes[settings.theme]||themes.wb;
- displayArea.style.background=th.bg;displayArea.style.color=th.fg;
+ displayArea.style.background=th.bg;
+ displayArea.style.color=th.fg;
  shown.style.fontFamily=settings.font;
- $('sizeRange').value=settings.size;$('sizeVal').textContent=settings.size;
- $('themeSelect').value=settings.theme;$('fontSelect').value=settings.font;
- $('autoFit').checked=!!settings.autoFit;$('keepHistory').checked=!!settings.keepHistory;
+ $('sizeRange').value=settings.size;
+ $('sizeVal').textContent=settings.size;
+ $('themeSelect').value=settings.theme;
+ $('fontSelect').value=settings.font;
+ $('autoFit').checked=!!settings.autoFit;
+ $('keepHistory').checked=!!settings.keepHistory;
  fitText();
 }
-function saveSettings(){lsSet(KEY_SET,settings);applySettings();}
+
+function saveSettings(){
+ lsSet(KEY_SET,settings);
+ applySettings();
+}
+
 function renderCategories(){
- var bar=$('categoryBar');bar.innerHTML='';
- categories.forEach(function(cat){var b=document.createElement('button');b.className='category'+(cat===selectedCategory?' active':'');b.textContent=cat;b.onclick=function(){selectedCategory=cat;renderCategories();renderChips();};bar.appendChild(b);});
+ var bar=$('categoryBar');
+ bar.innerHTML='';
+ categories.forEach(function(cat){
+  var b=document.createElement('button');
+  b.className='category'+(cat===selectedCategory?' active':'');
+  b.textContent=cat;
+  b.onclick=function(){
+   selectedCategory=cat;
+   renderCategories();
+   renderChips();
+  };
+  bar.appendChild(b);
+ });
 }
+
 function renderChips(){
- var box=$('chips');box.innerHTML='';
- phrases.forEach(function(p){if(p.category!==selectedCategory)return;var b=document.createElement('button');b.className='chip';b.textContent=p.text;b.onclick=function(){showText(p.text,true);};box.appendChild(b);});
+ var box=$('chips');
+ box.innerHTML='';
+ phrases.forEach(function(p){
+  if(p.category!==selectedCategory)return;
+  var b=document.createElement('button');
+  b.className='chip';
+  b.textContent=p.text;
+  b.onclick=function(){showText(p.text,true);};
+  box.appendChild(b);
+ });
 }
+
 function populateCategorySelect(){
- var sel=$('phraseCategory');sel.innerHTML='';
- categories.forEach(function(c){var o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+ var sel=$('phraseCategory');
+ sel.innerHTML='';
+ categories.forEach(function(c){
+  var o=document.createElement('option');
+  o.value=c;
+  o.textContent=c;
+  sel.appendChild(o);
+ });
  sel.value=selectedCategory;
 }
+
 function renderPhraseList(){
- var list=$('phraseList');list.innerHTML='';
+ var list=$('phraseList');
+ list.innerHTML='';
  var found=0;
- phrases.forEach(function(p,index){if(p.category!==$('phraseCategory').value)return;found++;
-  var item=document.createElement('div');item.className='phrase-item';var span=document.createElement('span');span.textContent=p.text;
-  var edit=document.createElement('button');edit.textContent='編集';edit.onclick=function(){var v=prompt('定型文を編集',p.text);if(v&&v.trim()){phrases[index].text=v.trim();persistPhrases();}};
-  var del=document.createElement('button');del.className='danger';del.textContent='削除';del.onclick=function(){if(confirm('この定型文を削除しますか？')){phrases.splice(index,1);persistPhrases();}};
-  item.appendChild(span);item.appendChild(edit);item.appendChild(del);list.appendChild(item);
+
+ phrases.forEach(function(p,index){
+  if(p.category!==$('phraseCategory').value)return;
+  found++;
+
+  var item=document.createElement('div');
+  item.className='phrase-item';
+
+  var span=document.createElement('span');
+  span.textContent=p.text;
+
+  var edit=document.createElement('button');
+  edit.textContent='編集';
+  edit.onclick=function(){
+   var v=prompt('定型文を編集',p.text);
+   if(v&&v.trim()){
+    phrases[index].text=v.trim();
+    persistPhrases();
+   }
+  };
+
+  var del=document.createElement('button');
+  del.className='danger';
+  del.textContent='削除';
+  del.onclick=function(){
+   phrases.splice(index,1);
+   persistPhrases();
+  };
+
+  item.appendChild(span);
+  item.appendChild(edit);
+  item.appendChild(del);
+  list.appendChild(item);
  });
- if(!found){var n=document.createElement('div');n.className='small-note';n.textContent='このカテゴリーに定型文はありません。';list.appendChild(n);}
+
+ if(!found){
+  var n=document.createElement('div');
+  n.className='small-note';
+  n.textContent='このカテゴリーに定型文はありません。';
+  list.appendChild(n);
+ }
 }
-function persistPhrases(){lsSet(KEY_PH,phrases);renderChips();renderPhraseList();}
-function openModal(id){$(id).classList.add('show');}
-function closeModals(){var ms=document.querySelectorAll('.modal');for(var i=0;i<ms.length;i++)ms[i].classList.remove('show');}
+
+function persistPhrases(){
+ lsSet(KEY_PH,phrases);
+ renderChips();
+ renderPhraseList();
+}
+
+function openModal(id){
+ $(id).classList.add('show');
+}
+
+function closeModals(){
+ var ms=document.querySelectorAll('.modal');
+ for(var i=0;i<ms.length;i++){
+  ms[i].classList.remove('show');
+ }
+}
+
+/* 音声認識 */
 var SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-var pointerHeld=false,activePointerId=null,stopRequested=false,restartTimer=null;
+var pointerHeld=false;
+var activePointerId=null;
+var stopRequested=false;
+var restartTimer=null;
+
 if(SpeechRecognition){
- recognition=new SpeechRecognition();recognition.lang='ja-JP';recognition.interimResults=true;recognition.continuous=true;recognition.maxAlternatives=3;
+ recognition=new SpeechRecognition();
+ recognition.lang='ja-JP';
+ recognition.interimResults=true;
+ recognition.continuous=true;
+ recognition.maxAlternatives=3;
+
  var finalBuffer='';
+
  function updateMicButton(recording){
   micBtn.classList.toggle('recording',!!recording);
-  micBtn.textContent=recording?'録音中… 指を離すと終了':'🎤 話す間押し続ける（音声入力）';
+  micBtn.textContent=recording?
+   '録音中… 指を離すと終了':
+   '🎤 話す間押し続ける（音声入力）';
  }
+
  function beginRecognition(){
   if(!recognition || !pointerHeld || stopRequested)return;
   try{
@@ -294,119 +484,381 @@ if(SpeechRecognition){
    }
   }
  }
+
  recognition.onstart=function(){
-  recognitionError='';updateMicButton(true);setStatus('録音中');
+  recognitionError='';
+  updateMicButton(true);
+  setStatus('録音中');
  };
+
  recognition.onresult=function(e){
   var interim='';
   for(var i=e.resultIndex;i<e.results.length;i++){
-   if(e.results[i].isFinal)finalBuffer+=e.results[i][0].transcript;
-   else interim+=e.results[i][0].transcript;
+   if(e.results[i].isFinal){
+    finalBuffer+=e.results[i][0].transcript;
+   }else{
+    interim+=e.results[i][0].transcript;
+   }
   }
+
   var combined=(finalBuffer+interim).trim();
   if(combined){
-   shown.textContent=combined;shown.classList.remove('empty');shown.classList.toggle('interim',!!interim);
-   activeText=combined;fitText();
+   shown.textContent=combined;
+   shown.classList.remove('empty');
+   shown.classList.toggle('interim',!!interim);
+   activeText=combined;
+   fitText();
   }
  };
+
  recognition.onerror=function(e){
   recognitionError=e.error||'認識エラー';
-  var fatalErrors=['not-allowed','service-not-allowed','audio-capture','network','language-not-supported'];
+  var fatalErrors=[
+   'not-allowed',
+   'service-not-allowed',
+   'audio-capture',
+   'network',
+   'language-not-supported'
+  ];
+
   if(fatalErrors.indexOf(recognitionError)>=0){
-   pointerHeld=false;stopRequested=true;
-   if(restartTimer){clearTimeout(restartTimer);restartTimer=null;}
+   pointerHeld=false;
+   stopRequested=true;
+   if(restartTimer){
+    clearTimeout(restartTimer);
+    restartTimer=null;
+   }
    setStatus('音声エラー：'+recognitionError);
   }
  };
+
  recognition.onend=function(){
-  if(restartTimer){clearTimeout(restartTimer);restartTimer=null;}
+  if(restartTimer){
+   clearTimeout(restartTimer);
+   restartTimer=null;
+  }
+
   if(pointerHeld && !stopRequested){
    setStatus('認識を再開しています…');
    restartTimer=setTimeout(beginRecognition,250);
    return;
   }
+
   updateMicButton(false);
-  if(finalBuffer.trim()){showText(finalBuffer,true);setStatus('認識完了');}
-  else if(recognitionError){setStatus('エラー：'+recognitionError);}
-  else{setStatus('待機中');}
-  pointerHeld=false;activePointerId=null;stopRequested=false;
+
+  if(finalBuffer.trim()){
+   showText(finalBuffer,true);
+   setStatus('認識完了');
+  }else if(recognitionError){
+   setStatus('エラー：'+recognitionError);
+  }else{
+   setStatus('待機中');
+  }
+
+  pointerHeld=false;
+  activePointerId=null;
+  stopRequested=false;
  };
+
  function startRec(e){
-  if(e){e.preventDefault();}
+  if(e)e.preventDefault();
   if(pointerHeld || !recognition)return;
   if(e && e.isPrimary===false)return;
-  pointerHeld=true;stopRequested=false;activePointerId=e?e.pointerId:null;
-  finalBuffer='';recognitionError='';showText('',false);
+
+  pointerHeld=true;
+  stopRequested=false;
+  activePointerId=e?e.pointerId:null;
+  finalBuffer='';
+  recognitionError='';
+  showText('',false);
+
   if(e && e.pointerId!==undefined){
    try{micBtn.setPointerCapture(e.pointerId);}catch(err){}
   }
+
   beginRecognition();
  }
+
  function stopRec(e){
-  if(e){e.preventDefault();}
+  if(e)e.preventDefault();
   if(!pointerHeld)return;
-  if(e && activePointerId!==null && e.pointerId!==undefined && e.pointerId!==activePointerId)return;
-  pointerHeld=false;stopRequested=true;
-  if(restartTimer){clearTimeout(restartTimer);restartTimer=null;}
-  try{recognition.stop();}catch(err){
+
+  if(e && activePointerId!==null &&
+     e.pointerId!==undefined &&
+     e.pointerId!==activePointerId)return;
+
+  pointerHeld=false;
+  stopRequested=true;
+
+  if(restartTimer){
+   clearTimeout(restartTimer);
+   restartTimer=null;
+  }
+
+  try{
+   recognition.stop();
+  }catch(err){
    updateMicButton(false);
-   if(finalBuffer.trim()){showText(finalBuffer,true);setStatus('認識完了');}
-   else{setStatus(recognitionError?'エラー：'+recognitionError:'待機中');}
-   activePointerId=null;stopRequested=false;
+   if(finalBuffer.trim()){
+    showText(finalBuffer,true);
+    setStatus('認識完了');
+   }else{
+    setStatus(recognitionError?'エラー：'+recognitionError:'待機中');
+   }
+   activePointerId=null;
+   stopRequested=false;
   }
  }
+
  micBtn.addEventListener('pointerdown',startRec);
  micBtn.addEventListener('pointerup',stopRec);
  micBtn.addEventListener('pointercancel',stopRec);
  micBtn.addEventListener('lostpointercapture',function(){});
  micBtn.addEventListener('contextmenu',function(e){e.preventDefault();});
-}else{micBtn.disabled=true;micBtn.textContent='音声認識非対応ブラウザ';setStatus('音声認識非対応');}
 
-$('questionBtn').onclick=function(){if(!activeText)return;var t=activeText.trim().replace(/[？！!?]+$/,'');showText(t+'？',false);};
-$('exclamationBtn').onclick=function(){if(!activeText)return;var t=activeText.trim().replace(/[？！!?]+$/,'');showText(t+'！',false);};
-$('helpBtn').onclick=function(){openModal('modal-help');};
-function updateFullscreenLabel(){
- $('fullscreenBtn').textContent=document.fullscreenElement?'全画面を終了':'全画面表示';
+}else{
+ micBtn.disabled=true;
+ micBtn.textContent='音声認識非対応ブラウザ';
+ setStatus('音声認識非対応');
 }
+
+/* 表示文章の直接編集 */
+var textAtFocus='';
+
+shown.addEventListener('focus',function(){
+ textAtFocus=shown.innerText.replace(/\r/g,'').trim();
+});
+
+shown.addEventListener('input',function(){
+ activeText=shown.innerText.replace(/\r/g,'');
+ shown.classList.toggle('empty',!activeText.trim());
+ fitText();
+});
+
+shown.addEventListener('blur',function(){
+ activeText=shown.innerText.replace(/\r/g,'').trim();
+ shown.textContent=activeText;
+ shown.classList.toggle('empty',!activeText);
+ fitText();
+
+ if(activeText && activeText!==textAtFocus && settings.keepHistory){
+  history.unshift({
+   text:activeText,
+   time:new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})
+  });
+  history=history.slice(0,30);
+  lsSet(KEY_HIST,history);
+ }
+});
+
+/* 記号・画面操作 */
+$('questionBtn').onclick=function(){
+ if(!activeText)return;
+ var t=activeText.trim().replace(/[？！!?]+$/,'');
+ showText(t+'？',false);
+};
+
+$('exclamationBtn').onclick=function(){
+ if(!activeText)return;
+ var t=activeText.trim().replace(/[？！!?]+$/,'');
+ showText(t+'！',false);
+};
+
+$('clearBtn').onclick=function(){
+ showText('',false);
+ setStatus('消去しました');
+};
+
+$('helpBtn').onclick=function(){
+ openModal('modal-help');
+};
+
+/* 全画面表示 */
+function updateFullscreenLabel(){
+ $('fullscreenBtn').textContent=
+  document.fullscreenElement?'全画面を終了':'全画面表示';
+}
+
 $('fullscreenBtn').onclick=function(){
  if(!document.fullscreenElement){
   var el=document.documentElement;
-  if(el.requestFullscreen){el.requestFullscreen().then(updateFullscreenLabel).catch(function(){setStatus('全画面表示に対応していません');});}
-  else{setStatus('このブラウザは全画面表示に対応していません');}
+  if(el.requestFullscreen){
+   el.requestFullscreen().then(updateFullscreenLabel).catch(function(){
+    setStatus('全画面表示に対応していません');
+   });
+  }else{
+   setStatus('このブラウザは全画面表示に対応していません');
+  }
  }else if(document.exitFullscreen){
   document.exitFullscreen().then(updateFullscreenLabel).catch(function(){});
  }
 };
+
 document.addEventListener('fullscreenchange',updateFullscreenLabel);
-$('undoBtn').onclick=function(){if(previousText){var t=activeText;showText(previousText,false);previousText=t;setStatus('直前の文章を復元しました');}else{setStatus('復元できる文章がありません');}};
-$('clearBtn').onclick=function(){if(activeText){if(!confirm('表示中の文章を消去しますか？'))return;showText('',false);setStatus('消去しました');}};
-$('editBtn').onclick=function(){$('editText').value=activeText;openModal('modal-edit');};
-$('saveEditBtn').onclick=function(){showText($('editText').value,true);closeModals();setStatus('文章を更新しました');};
-$('replyToggle').onclick=function(){$('reply-panel').classList.toggle('visible');};
-var replyButtons=document.querySelectorAll('[data-reply]');
-for(var rb=0;rb<replyButtons.length;rb++){replyButtons[rb].onclick=function(){showText('【患者さんの返答】'+this.getAttribute('data-reply'),true);setStatus('患者さんが返答しました');document.body.classList.remove('patient-mode');$('control-area').classList.remove('hidden');};}
-function enterPatientMode(){document.body.classList.add('patient-mode');$('reply-panel').classList.add('visible');}
-$('patientModeBtn').onclick=enterPatientMode;
-$('patientExit').onclick=function(){document.body.classList.remove('patient-mode');};
-$('manageBtn').onclick=function(){populateCategorySelect();renderPhraseList();openModal('modal-manage');};
+
+/* 定型文管理 */
+$('manageBtn').onclick=function(){
+ populateCategorySelect();
+ renderPhraseList();
+ openModal('modal-manage');
+};
+
 $('phraseCategory').onchange=renderPhraseList;
-$('addPhraseBtn').onclick=function(){var v=$('newPhraseInput').value.trim();if(!v)return;phrases.push({category:$('phraseCategory').value,text:v});$('newPhraseInput').value='';persistPhrases();};
-$('exportBtn').onclick=function(){var blob=new Blob([JSON.stringify({version:1,categories:categories,phrases:phrases},null,2)],{type:'application/json'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='筆談くんneo_定型文.json';a.click();setTimeout(function(){URL.revokeObjectURL(url);},1000);};
-$('importBtn').onclick=function(){$('importFile').click();};
-$('importFile').onchange=function(){var f=this.files&&this.files[0];if(!f)return;var reader=new FileReader();reader.onload=function(){try{var data=JSON.parse(reader.result);var arr=Array.isArray(data)?data:data.phrases;if(!Array.isArray(arr))throw new Error('形式');var normalized=arr.map(function(p){return typeof p==='string'?{category:'その他',text:p}:{category:categories.indexOf(p.category)>=0?p.category:'その他',text:String(p.text||'').trim()};}).filter(function(p){return p.text;});if(!confirm(normalized.length+'件の定型文を読み込み、現在の定型文と置き換えますか？'))return;phrases=normalized;persistPhrases();alert('読み込みました。');}catch(e){alert('JSONファイルを読み込めませんでした。');}};reader.readAsText(f,'UTF-8');this.value='';};
-$('historyBtn').onclick=function(){renderHistory();openModal('modal-history');};
-function renderHistory(){var box=$('historyList');box.innerHTML='';if(!history.length){box.textContent='履歴はありません。';return;}history.forEach(function(h){var row=document.createElement('div');row.className='history-item';var s=document.createElement('span');s.textContent=(h.time||'')+' '+h.text;var b=document.createElement('button');b.textContent='表示';b.onclick=function(){showText(h.text,false);closeModals();};row.appendChild(s);row.appendChild(b);box.appendChild(row);});}
-$('clearHistoryBtn').onclick=function(){if(confirm('履歴をすべて削除しますか？')){history=[];lsSet(KEY_HIST,history);renderHistory();}};
-$('settingsBtn').onclick=function(){applySettings();openModal('modal-settings');};
-$('sizeRange').oninput=function(){settings.size=parseInt(this.value,10);$('sizeVal').textContent=settings.size;saveSettings();};
-$('themeSelect').onchange=function(){settings.theme=this.value;saveSettings();};
-$('fontSelect').onchange=function(){settings.font=this.value;saveSettings();};
-$('autoFit').onchange=function(){settings.autoFit=this.checked;saveSettings();};
-$('keepHistory').onchange=function(){settings.keepHistory=this.checked;saveSettings();};
-var closeButtons=document.querySelectorAll('.closeModal');for(var cb=0;cb<closeButtons.length;cb++)closeButtons[cb].onclick=closeModals;
-$('exitBtn').onclick=function(){if(confirm('表示を初期状態に戻しますか？')){showText('',false);document.body.classList.remove('patient-mode');$('reply-panel').classList.remove('visible');setStatus('待機中');}};
-document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeModals();document.body.classList.remove('patient-mode');}});
-applySettings();renderCategories();renderChips();
+
+$('addPhraseBtn').onclick=function(){
+ var v=$('newPhraseInput').value.trim();
+ if(!v)return;
+
+ phrases.push({
+  category:$('phraseCategory').value,
+  text:v
+ });
+
+ $('newPhraseInput').value='';
+ persistPhrases();
+};
+
+$('exportBtn').onclick=function(){
+ var blob=new Blob(
+  [JSON.stringify({version:1,categories:categories,phrases:phrases},null,2)],
+  {type:'application/json'}
+ );
+ var url=URL.createObjectURL(blob);
+ var a=document.createElement('a');
+ a.href=url;
+ a.download='筆談くんneo_定型文.json';
+ a.click();
+ setTimeout(function(){URL.revokeObjectURL(url);},1000);
+};
+
+$('importBtn').onclick=function(){
+ $('importFile').click();
+};
+
+$('importFile').onchange=function(){
+ var f=this.files&&this.files[0];
+ if(!f)return;
+
+ var reader=new FileReader();
+ reader.onload=function(){
+  try{
+   var data=JSON.parse(reader.result);
+   var arr=Array.isArray(data)?data:data.phrases;
+   if(!Array.isArray(arr))throw new Error('形式');
+
+   var normalized=arr.map(function(p){
+    return typeof p==='string'?
+     {category:'その他',text:p}:
+     {
+      category:categories.indexOf(p.category)>=0?p.category:'その他',
+      text:String(p.text||'').trim()
+     };
+   }).filter(function(p){return p.text;});
+
+   phrases=normalized;
+   persistPhrases();
+   setStatus('定型文を読み込みました');
+  }catch(e){
+   setStatus('JSONファイルを読み込めませんでした');
+  }
+ };
+ reader.readAsText(f,'UTF-8');
+ this.value='';
+};
+
+/* 履歴 */
+$('historyBtn').onclick=function(){
+ renderHistory();
+ openModal('modal-history');
+};
+
+function renderHistory(){
+ var box=$('historyList');
+ box.innerHTML='';
+
+ if(!history.length){
+  box.textContent='履歴はありません。';
+  return;
+ }
+
+ history.forEach(function(h){
+  var row=document.createElement('div');
+  row.className='history-item';
+
+  var s=document.createElement('span');
+  s.textContent=(h.time||'')+' '+h.text;
+
+  var b=document.createElement('button');
+  b.textContent='表示';
+  b.onclick=function(){
+   showText(h.text,false);
+   closeModals();
+  };
+
+  row.appendChild(s);
+  row.appendChild(b);
+  box.appendChild(row);
+ });
+}
+
+$('clearHistoryBtn').onclick=function(){
+ history=[];
+ lsSet(KEY_HIST,history);
+ renderHistory();
+};
+
+/* 表示設定 */
+$('settingsBtn').onclick=function(){
+ applySettings();
+ openModal('modal-settings');
+};
+
+$('sizeRange').oninput=function(){
+ settings.size=parseInt(this.value,10);
+ $('sizeVal').textContent=settings.size;
+ saveSettings();
+};
+
+$('themeSelect').onchange=function(){
+ settings.theme=this.value;
+ saveSettings();
+};
+
+$('fontSelect').onchange=function(){
+ settings.font=this.value;
+ saveSettings();
+};
+
+$('autoFit').onchange=function(){
+ settings.autoFit=this.checked;
+ saveSettings();
+};
+
+$('keepHistory').onchange=function(){
+ settings.keepHistory=this.checked;
+ saveSettings();
+};
+
+/* モーダル共通 */
+var closeButtons=document.querySelectorAll('.closeModal');
+for(var cb=0;cb<closeButtons.length;cb++){
+ closeButtons[cb].onclick=closeModals;
+}
+
+/* 初期画面 */
+$('exitBtn').onclick=function(){
+ showText('',false);
+ setStatus('待機中');
+};
+
+document.addEventListener('keydown',function(e){
+ if(e.key==='Escape')closeModals();
+});
+
+applySettings();
+renderCategories();
+renderChips();
+
 })();
 </script>
 </body>
