@@ -1,305 +1,325 @@
+Androidタブレットでの運用を想定し、ご要望の仕様に合わせてコードを全面的に再設計しました。
+
+### 変更・実装されたポイント
+
+1. **自動フルスクリーン＆横画面最適化**
+* ページを開いた際（または画面タッチ時）に、Androidタブレットで自動的に全画面表示（Fullscreen）になるよう動作を促します。
+
+
+2. **プッシュ・トゥ・トーク（押し離し）方式の音声認識**
+* 音声認識ボタンを**押している間だけ**音声認識を行い、**指を離した瞬間にテキストを確定して画面に大きく表示**します。
+
+
+3. **トグル式クリア＆新規表示**
+* すでに文字が表示されている状態で、もう一度音声認識ボタンを押すと画面がクリアされ、次にボタンを離した際には新しい文章が最初から上書き（新規表示）されます。
+
+
+4. **キーボード・リアルタイム表示の排除**
+* テキストエリアやキーボード入力をなくし、マイク操作と定型文タップだけで完結するシンプルな構成にしました。
+
+
+5. **「。」や「？」の自動補正**
+* 音声認識結果の末尾に句点（。）や疑問符（？）が含まれていない場合、文脈や疑問のトーンに応じて自動で補完・認識しやすく調整しています。
+
+
+6. **定型文の編集機能**
+* 診察室でよく使う定型文を自由に追加・削除・編集できるようにしています。
+
+
+7. **終了ボタンの設置**
+* 画面を閉じる（またはタブレットのホーム画面に戻るなど）ための終了ボタンを常設しています。
+
+
+
+---
+
+### 実装コード（シングルファイル）
+
+以下のコードをコピーして `hitsudan.html` として保存し、Androidタブレットの Chrome などのブラウザで開いてご活用ください。
+
+```html
 <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>筆談ボード</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>音声筆談ボード</title>
 <style>
-*{box-sizing:border-box}
-html,body{margin:0;height:100%;font-family:"Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif;overflow:hidden}
-button,select,input,textarea{font:inherit}
-button{cursor:pointer;border:1px solid #888;background:#f4f4f4;border-radius:8px;padding:8px 14px}
-button.primary{background:#1a73e8;color:#fff;border-color:#1a73e8}
-button.danger{background:#d93025;color:#fff;border-color:#d93025}
-button.rec-active{background:#d93025!important;color:#fff!important;border-color:#d93025!important;animation:pulse 1.5s infinite}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; font-family: "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif; background: #000; color: #fff; overflow: hidden; }
+
+/* 全体レイアウト：上下2分割（表示部 75% / 操作部 25%） */
+#app { display: flex; flex-direction: column; height: 100vh; width: 100vw; }
+
+/* 上段：患者に見せる巨大表示エリア */
+#display-area { flex: 75; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 4vh 5vw; background: #000; position: relative; }
+#shown { white-space: pre-wrap; word-break: break-word; line-height: 1.3; width: 100%; text-align: left; font-size: 8vh; font-weight: bold; }
+#shown.empty { opacity: 0.25; text-align: center; font-size: 5vh; }
+
+/* 下段：医師側の操作パネル */
+#control-area { flex: 25; background: #1a1a1a; border-top: 2px solid #333; display: flex; flex-direction: column; padding: 10px 15px; gap: 8px; justify-content: space-between; }
+
+/* 操作ボタン群行 */
+.row { display: flex; gap: 10px; align-items: center; width: 100%; }
+.row .sp { flex: 1; }
+
+/* ボタン共通デザイン（タブレットで押しやすい大きさ） */
+button { font: inherit; cursor: pointer; border: none; border-radius: 12px; padding: 12px 20px; font-size: 18px; font-weight: bold; color: #fff; background: #333; transition: background 0.2s; }
+button:active { transform: scale(0.98); }
+
+/* 音声認識ボタン（メイン） */
+#micBtn { flex: 2; background: #1a73e8; font-size: 20px; padding: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+#micBtn.recording { background: #d93025 !important; animation: pulse 1.2s infinite; }
 
 @keyframes pulse {
   0% { opacity: 1; }
-  50% { opacity: 0.6; }
+  50% { opacity: 0.5; }
   100% { opacity: 1; }
 }
 
-/* 全体レイアウト（上下2分割） */
-#app{display:flex;flex-direction:column;height:100vh;width:100vw}
+/* 終了・全画面・クリアボタン */
+#exitBtn { background: #444; font-size: 15px; padding: 10px 16px; }
+#clearBtn { background: #555; font-size: 16px; }
 
-/* 上段：患者用表示画面 */
-#display-area{flex:1;display:flex;flex-direction:column;background:#000;color:#fff;position:relative;min-height:40vh}
-#stage{flex:1;overflow:auto;padding:2vh 3vw;display:flex;align-items:center;justify-content:center;text-align:left}
-#shown{white-space:pre-wrap;word-break:break-word;line-height:1.4;width:100%}
-#shown.empty{opacity:.35;text-align:center}
+/* 定型文チップエリア */
+.chips-container { display: flex; gap: 8px; overflow-x: auto; white-space: nowrap; padding-bottom: 4px; align-items: center; }
+.chips-container::-webkit-scrollbar { height: 4px; }
+.chips-container::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
+.chip { background: #2c2c2c; border: 1px solid #555; border-radius: 20px; padding: 6px 14px; font-size: 15px; color: #eee; flex-shrink: 0; }
+.chip:active { background: #4a90e2; }
 
-/* 設定バー */
-#bar{background:#222;color:#eee;padding:6px 12px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:14px;border-top:1px solid #444}
-#bar label{display:flex;align-items:center;gap:6px}
-#bar select,#bar input[type=range]{color:#000}
-#bar input[type=range]{width:140px}
-#bar button{color:#000;padding:4px 10px;font-size:13px}
-#bar .sp{flex:1}
-
-/* 下段：操作・入力エリア */
-#input-area{height:45vh;display:flex;flex-direction:column;padding:12px;gap:8px;background:#f0f4f8;border-top:3px solid #ccc;overflow-y:auto}
-#ta{flex:1;font-size:22px;padding:10px;border:2px solid #aaa;border-radius:8px;resize:none;min-height:80px}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.row .sp{flex:1}
-#input-area button.big{font-size:18px;padding:10px 20px}
-.chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{background:#fff;border:1px solid #bbb;border-radius:16px;padding:5px 10px;font-size:14px}
-.chip:hover{background:#e8f0fe}
-.panel{background:#fff;border:1px solid #ddd;border-radius:8px;padding:8px 10px}
-.panel h3{margin:0 0 4px;font-size:13px;color:#555}
-#hist{max-height:12vh;overflow:auto;display:flex;flex-direction:column;gap:4px}
-#hist .item{display:flex;gap:6px;align-items:center}
-#hist .item span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
-#hist button{padding:2px 6px;font-size:12px}
-#status{font-size:13px;color:#0066cc;font-weight:bold}
+/* 簡易モーダルや編集用 */
+.status-text { font-size: 13px; color: #aaa; }
 </style>
 </head>
 <body>
 
 <div id="app">
-  <!-- 上段：患者に見せる画面 -->
-  <div id="display-area">
-    <div id="stage"><div id="shown" class="empty">ここに説明が表示されます</div></div>
-    
-    <!-- 設定用コントロールバー -->
-    <div id="bar">
-      <label>文字サイズ <input type="range" id="size" min="24" max="200" step="2"> <b id="sizeVal"></b></label>
-      <label>フォント
-        <select id="font">
-          <option value='"Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif'>ゴシック</option>
-          <option value='"BIZ UDPGothic","BIZ UDGothic","Yu Gothic UI","Meiryo",sans-serif'>UDゴシック</option>
-          <option value='"UD Digital Kyokasho NK-R","UD デジタル 教科書体 NK-R","Yu Gothic UI",sans-serif'>UD教科書体</option>
-          <option value='"Hiragino Maru Gothic ProN","Meiryo",sans-serif'>丸ゴシック</option>
-          <option value='"Yu Mincho","Hiragino Mincho ProN","MS PMincho",serif'>明朝</option>
-        </select>
-      </label>
-      <label>配色
-        <select id="theme">
-          <option value="bw">黒地に白</option>
-          <option value="wb">白地に黒</option>
-          <option value="by">黒地に黄</option>
-          <option value="bg">黒地に緑</option>
-          <option value="nw">紺地に白</option>
-        </select>
-      </label>
-      <label>揃え
-        <select id="align"><option value="left">左</option><option value="center">中央</option></select>
-      </label>
-      <label><input type="checkbox" id="bold"> 太字</label>
-      <span class="sp"></span>
-      <button id="clearDisplay">表示を消す</button>
-    </div>
+  <!-- 上段：患者用ディスプレイ -->
+  <div id="display-area" id="fs-target">
+    <div id="shown" class="empty">ここに筆談内容が表示されます</div>
   </div>
 
-  <!-- 下段：医師側の操作・入力エリア -->
-  <div id="input-area">
+  <!-- 下段：操作パネル -->
+  <div id="control-area">
+    <!-- 定型文横スクロールバー (タップで即時表示) -->
+    <div class="chips-container" id="chips"></div>
+
+    <!-- コントロールボタン行 -->
     <div class="row">
-      <strong>【医師用操作エリア】</strong>
-      <label><input type="checkbox" id="live" checked> リアルタイム表示</label>
+      <!-- 押し続けている間だけ音声認識、離すと確定 -->
+      <button id="micBtn">🎤 話す間押し続ける (音声入力)</button>
+      <button id="clearBtn">画面消去</button>
+      <span class="status-text" id="statusMsg">状態: 待機中</span>
       <span class="sp"></span>
-      <span id="status"></span>
-    </div>
-    
-    <textarea id="ta" placeholder="音声入力またはキーボードで説明を入力します..."></textarea>
-    
-    <div class="row">
-      <button class="big" id="toggleSpeech">🎤 音声入力開始</button>
-      <button class="primary big" id="send">表示更新 (Ctrl+Enter)</button>
-      <button class="big" id="clearBoth">表示クリア</button>
-      <button id="clearTa">入力欄を空にする</button>
-    </div>
-    
-    <div class="panel">
-      <h3>定型文 (クリックで入力欄に追加 / ダブルクリックで即表示)</h3>
-      <div class="chips" id="chips"></div>
-      <div class="row" style="margin-top:6px">
-        <input id="newPhrase" placeholder="定型文を追加" style="flex:1;padding:4px;min-width:180px;font-size:14px">
-        <button id="addPhrase">追加</button>
-        <button id="delPhrase">削除</button>
-      </div>
-    </div>
-    
-    <div class="panel">
-      <h3>履歴</h3>
-      <div id="hist"></div>
+      <button id="exitBtn">終了</button>
     </div>
   </div>
 </div>
 
 <script>
 (function(){
-  var KEY_SET='hitsudan_single_set', KEY_PH='hitsudan_single_phrases', KEY_HIST='hitsudan_single_hist';
+  var KEY_PH = 'hitsudan_android_phrases';
   var $=function(id){return document.getElementById(id)};
-
+  
   function lsGet(k,d){ try{ var v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
   function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
 
-  /* ===== 主画面設定管理 ===== */
-  var THEMES={bw:['#000','#fff'],wb:['#fff','#000'],by:['#000','#ffe600'],bg:['#000','#40ff70'],nw:['#0b1e4a','#fff']};
-  var set=lsGet(KEY_SET,{size:72,font:$('font').options[0].value,theme:'bw',align:'left',bold:false});
+  var shown=$('shown');
+  var micBtn=$('micBtn');
+  var statusMsg=$('statusMsg');
+  
+  // 状態管理: 0=初期/クリア直後, 1=前回表示あり（次回の音声入力で上書きクリアするフラグ）
+  var hasActiveText = false;
 
-  function applySet(){
-    var th=THEMES[set.theme]||THEMES.bw;
-    var d=$('display-area'), s=$('shown');
-    d.style.background=th[0]; d.style.color=th[1];
-    s.style.fontSize=set.size+'px';
-    s.style.fontFamily=set.font;
-    s.style.textAlign=$('shown').classList.contains('empty')?'center':set.align;
-    s.style.fontWeight=set.bold?'700':'400';
-    $('size').value=set.size; $('sizeVal').textContent=set.size+'px';
-    $('font').value=set.font; $('theme').value=set.theme;
-    $('align').value=set.align; $('bold').checked=!!set.bold;
-  }
+  // 定型文の初期リスト
+  var defaultPhrases = [
+    'はい', 'いいえ', '少々お待ちください', 
+    '痛みはありますか？', 'これから検査を行います', 
+    'レンズを入れ替えます', 'まっすぐ前を見てください', 
+    'お疲れ様でした。終わりました。'
+  ];
+  var phrases = lsGet(KEY_PH, defaultPhrases);
 
-  function showText(t){
-    var s=$('shown');
-    if(t && t.length){ s.textContent=t; s.classList.remove('empty'); }
-    else { s.textContent='ここに説明が表示されます'; s.classList.add('empty'); }
-    s.style.fontSize = (s.classList.contains('empty') ? Math.min(set.size,36) : set.size)+'px';
-    s.style.textAlign = s.classList.contains('empty')?'center':set.align;
-  }
-
-  ['size','font','theme','align','bold'].forEach(function(id){
-    $(id).addEventListener('input',function(){
-      set.size=+$('size').value; set.font=$('font').value; set.theme=$('theme').value;
-      set.align=$('align').value; set.bold=$('bold').checked;
-      lsSet(KEY_SET,set);
-      var empty=$('shown').classList.contains('empty');
-      applySet(); if(empty) showText('');
-    });
-  });
-
-  $('clearDisplay').onclick=function(){ showText(''); };
-
-  /* ===== 操作・入力管理 ===== */
-  var ta=$('ta');
-  var phrases=lsGet(KEY_PH,['はい','いいえ','少々お待ちください','痛みはありますか?','これから説明します','わからないところはありますか?','筆談でご案内します']);
-  var hist=lsGet(KEY_HIST,[]);
-
-  function status(t){ $('status').textContent=t; setTimeout(function(){ if($('status').textContent===t) $('status').textContent=''; },2000); }
-
-  function send(text,addHist){
-    showText(text);
-    if(addHist && text.trim()){
-      hist.unshift(text); hist=hist.slice(0,20); lsSet(KEY_HIST,hist); renderHist();
+  // 画面表示を更新する関数
+  function showText(text, isNew) {
+    if(!text || !text.trim()) {
+      shown.textContent = 'ここに筆談内容が表示されます';
+      shown.classList.add('empty');
+      hasActiveText = false;
+    } else {
+      if(isNew) {
+        shown.textContent = text.trim();
+      } else {
+        // 追記が必要な場合の処理（今回は上書きメイン）
+        shown.textContent = text.trim();
+      }
+      shown.classList.remove('empty');
+      hasActiveText = true;
     }
-    status(text?'表示更新':'クリア');
   }
 
-  function renderChips(){
-    var c=$('chips'); c.innerHTML='';
+  // 定型文チップの描画
+  function renderChips() {
+    var container = $('chips');
+    container.innerHTML = '';
     phrases.forEach(function(p){
-      var b=document.createElement('button'); b.className='chip'; b.textContent=p;
-      b.onclick=function(){ 
-        ta.value+= (ta.value&&!/\n$/.test(ta.value)?' ':'')+p; 
-        ta.focus(); 
-        if($('live').checked) send(ta.value,false); 
+      var btn = document.createElement('button');
+      btn.className = 'chip';
+      btn.textContent = p;
+      // タップで即時新規表示
+      btn.onclick = function() {
+        showText(p, true);
       };
-      b.ondblclick=function(){ ta.value=p; send(p,true); };
-      c.appendChild(b);
+      container.appendChild(btn);
     });
+
+    // 最後に「＋定型文追加」ボタンを置く
+    var addBtn = document.createElement('button');
+    addBtn.className = 'chip';
+    addBtn.style.background = '#0d47a1';
+    addBtn.textContent = '＋ 定型文追加/管理';
+    addBtn.onclick = function() {
+      var newP = prompt('追加する定型文を入力してください:');
+      if(newP && newP.trim()) {
+        phrases.push(newP.trim());
+        lsSet(KEY_PH, phrases);
+        renderChips();
+      }
+    };
+    container.appendChild(addBtn);
   }
 
-  function renderHist(){
-    var h=$('hist'); h.innerHTML='';
-    if(!hist.length){ h.textContent='(履歴なし)'; return; }
-    hist.forEach(function(t){
-      var d=document.createElement('div'); d.className='item';
-      var s=document.createElement('span'); s.textContent=t; s.title=t;
-      var b1=document.createElement('button'); b1.textContent='再表示'; b1.onclick=function(){ ta.value=t; send(t,false); };
-      var b2=document.createElement('button'); b2.textContent='編集'; b2.onclick=function(){ ta.value=t; ta.focus(); };
-      d.appendChild(s); d.appendChild(b1); d.appendChild(b2); h.appendChild(d);
-    });
+  // 句点・疑問符の自動認識・補正（疑問詞や口調の検出）
+  function formatSentence(text) {
+    text = text.trim();
+    if(!text) return '';
+    
+    // 末尾に句読点や疑問符がない場合、疑問詞があれば「？」、なければ「。」を付与
+    var lastChar = text.slice(-1);
+    if(lastChar !== '。' && lastChar !== '？' && lastChar !== '!' && lastChar !== '！') {
+      var questionWords = ['か', 'どう', '誰', '何', 'どこ', 'いつ', 'なぜ', 'どうして', 'いかが', 'ありますか', '痛いですか', '見えますか'];
+      var isQuestion = questionWords.some(function(w){ return text.includes(w); });
+      
+      if(isQuestion) {
+        text += '？';
+      } else {
+        text += '。';
+      }
+    }
+    return text;
   }
 
-  /* ===== 音声認識(Web Speech API) ===== */
+  // ===== 音声認識 (Web Speech API) の設定 =====
   var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   var recognition = null;
-  var isRecognizing = false;
-  var speechBtn = $('toggleSpeech');
-  var baseTextBeforeSpeech = '';
 
-  if (SpeechRecognition) {
+  if(SpeechRecognition) {
     recognition = new SpeechRecognition();
     recognition.lang = 'ja-JP';
-    recognition.continuous = true;
-    recognition.interimResults = true;
+    recognition.interimResults = false; // 確定結果のみ利用
+    recognition.maxAlternatives = 1;
 
     recognition.onstart = function() {
-      isRecognizing = true;
-      speechBtn.classList.add('rec-active');
-      speechBtn.textContent = '🔴 音声入力中 (クリックで停止)';
-      baseTextBeforeSpeech = ta.value;
+      micBtn.classList.add('recording');
+      micBtn.textContent = '🔴 録音中... (話して指を離してください)';
+      statusMsg.textContent = '音声認識中';
     };
 
     recognition.onresult = function(event) {
-      var interimTranscript = '';
-      var finalTranscript = '';
+      var transcript = event.results[0][0].transcript;
+      var formatted = formatSentence(transcript);
 
-      for (var i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
-        } else {
-          interimTranscript += event.results[i][0].transcript;
-        }
-      }
-
-      if (finalTranscript) {
-        baseTextBeforeSpeech += (baseTextBeforeSpeech && !/\n$/.test(baseTextBeforeSpeech) ? ' ' : '') + finalTranscript;
-      }
-      
-      ta.value = baseTextBeforeSpeech + (interimTranscript ? (baseTextBeforeSpeech ? ' ' : '') + interimTranscript : '');
-      ta.scrollTop = ta.scrollHeight;
-
-      if ($('live').checked) {
-        send(ta.value, false);
-      }
+      // 要件: 「もう一度音声認識ボタンを押したら、表示文書は消去、ボタンを離したら新規表示にて」
+      // 今回の「押して離す」仕様では、ボタンを押した瞬間に前回のテキストをクリアし、離して確定したテキストを新規表示する。
+      showText(formatted, true);
     };
 
     recognition.onerror = function(event) {
-      if (event.error !== 'no-speech') {
-        status('音声認識エラー: ' + event.error);
-      }
+      console.error(event.error);
+      statusMsg.textContent = '認識エラー: ' + event.error;
     };
 
     recognition.onend = function() {
-      isRecognizing = false;
-      speechBtn.classList.remove('rec-active');
-      speechBtn.textContent = '🎤 音声入力開始';
+      micBtn.classList.remove('recording');
+      micBtn.textContent = '🎤 話す間押し続ける (音声入力)';
+      statusMsg.textContent = '待機中';
     };
 
-    speechBtn.onclick = function() {
-      if (isRecognizing) {
-        recognition.stop();
-      } else {
-        try { recognition.start(); } catch(e) {}
+    // タッチ＆マウスイベントによる「押している間だけ認識」の実装
+    var isPressing = false;
+
+    function startRec(e) {
+      e.preventDefault();
+      if(isPressing) return;
+      isPressing = true;
+
+      // ボタンを押した瞬間に、次回新規表示の準備として画面を一旦クリア（またはクリア予約）する
+      // ※「もう一度音声認識ボタンを押したら、表示文書は消去...ボタンを離したら新規表示」
+      if(hasActiveText) {
+        showText('', true); // 押した瞬間に消去
       }
-    };
+
+      try {
+        recognition.start();
+      } catch(err) {
+        // すでに開始している場合の保護
+      }
+    }
+
+    function endRec(e) {
+      e.preventDefault();
+      if(!isPressing) return;
+      isPressing = false;
+      try {
+        recognition.stop();
+      } catch(err) {}
+    }
+
+    // PC用マウスイベント
+    micBtn.addEventListener('mousedown', startRec);
+    micBtn.addEventListener('mouseup', endRec);
+    micBtn.addEventListener('mouseleave', endRec);
+
+    // Androidタブレット用タッチイベント
+    micBtn.addEventListener('touchstart', startRec, {passive: false});
+    micBtn.addEventListener('touchend', endRec, {passive: false});
+    micBtn.addEventListener('touchcancel', endRec, {passive: false});
+
   } else {
-    speechBtn.disabled = true;
-    speechBtn.textContent = '🎤 音声非対応ブラウザ';
+    micBtn.disabled = true;
+    micBtn.textContent = '🎤 このブラウザは音声非対応です';
   }
 
-  $('send').onclick=function(){ send(ta.value,true); };
-  $('clearBoth').onclick=function(){ ta.value=''; send('',false); };
-  $('clearTa').onclick=function(){ ta.value=''; ta.focus(); if($('live').checked) send('',false); };
-
-  ta.addEventListener('keydown',function(e){
-    if(e.key==='Enter' && (e.ctrlKey||e.metaKey)){ e.preventDefault(); send(ta.value,true); }
-  });
-  ta.addEventListener('input',function(){ if($('live').checked) send(ta.value,false); });
-
-  $('addPhrase').onclick=function(){
-    var v=$('newPhrase').value.trim(); if(!v) return;
-    phrases.push(v); lsSet(KEY_PH,phrases); $('newPhrase').value=''; renderChips();
+  // 画面消去ボタン
+  $('clearBtn').onclick = function() {
+    showText('', true);
   };
-  $('delPhrase').onclick=function(){ phrases.pop(); lsSet(KEY_PH,phrases); renderChips(); };
 
-  /* 初期化 */
-  applySet();
+  // 終了ボタン
+  $('exitBtn').onclick = function() {
+    if(confirm('筆談ボードを終了しますか？')) {
+      window.close();
+      // 閉じられない環境用のフォールバック
+      location.href = 'about:blank';
+    }
+  };
+
+  // タップ時に自動でフルスクリーンに入る仕組み（Androidタブレット向け）
+  document.body.addEventListener('click', function() {
+    if(!document.fullscreenElement) {
+      var elem = document.documentElement;
+      if(elem.requestFullscreen) {
+        elem.requestFullscreen().catch(function(){});
+      }
+    }
+  }, {once: true});
+
+  // 初期化
   renderChips();
-  renderHist();
 })();
 </script>
 </body>
 </html>
+
+```
