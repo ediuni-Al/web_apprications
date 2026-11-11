@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -296,6 +295,33 @@ var recognition=null;
 var recognitionError='';
 var history=lsGet(KEY_HIST,[]);
 
+/* 医学用語・頻出用語の自動置換辞書 */
+var medicalDictionary = [
+  { wrong: /はくないしょう/g, right: '白内障' },
+  { wrong: /りょくないしょう/g, right: '緑内障' },
+  { wrong: /がんあつ/g, right: '眼圧' },
+  { wrong: /もうまく/g, right: '網膜' },
+  { wrong: /かくまく/g, right: '角膜' },
+  { wrong: /しょうしたい/g, right: '硝子体' },
+  { wrong: /おうはん/g, right: '黄斑' },
+  { wrong: /てんがん/g, right: '点眼' },
+  { wrong: /てんがんやく/g, right: '点眼薬' },
+  { wrong: /しやけんさ/g, right: '視野検査' },
+  { wrong: /せんじょう/g, right: '洗浄' },
+  { wrong: /散瞳/g, right: '散瞳' },
+  { wrong: /さんどう/g, right: '散瞳' },
+  { wrong: /眼圧が高い/g, right: '眼圧が高い' },
+  { wrong: /がんはつ/g, right: '眼圧' }
+];
+
+function applyMedicalFilter(text) {
+ if(!text) return '';
+ medicalDictionary.forEach(function(item){
+  text = text.replace(item.wrong, item.right);
+ });
+ return text;
+}
+
 function setStatus(s){
  statusMsg.textContent=s;
 }
@@ -309,7 +335,7 @@ function fitText(){
 }
 
 function showText(text,saveHistory){
- text=String(text||'').trim();
+ text=applyMedicalFilter(String(text||'').trim());
  activeText=text;
  shown.textContent=text;
  shown.classList.toggle('empty',!text);
@@ -465,6 +491,7 @@ if(SpeechRecognition){
  recognition.maxAlternatives=3;
 
  var finalBuffer='';
+ var lastChunk='';
 
  function updateMicButton(recording){
   micBtn.classList.toggle('recording',!!recording);
@@ -494,14 +521,19 @@ if(SpeechRecognition){
  recognition.onresult=function(e){
   var interim='';
   for(var i=e.resultIndex;i<e.results.length;i++){
+   var textChunk = e.results[i][0].transcript;
    if(e.results[i].isFinal){
-    finalBuffer+=e.results[i][0].transcript;
+    // 直前の確定テキストと完全に重複・連呼している場合のループ排除
+    if(textChunk !== lastChunk && !finalBuffer.endsWith(textChunk)){
+     finalBuffer += textChunk;
+     lastChunk = textChunk;
+    }
    }else{
-    interim+=e.results[i][0].transcript;
+    interim+=textChunk;
    }
   }
 
-  var combined=(finalBuffer+interim).trim();
+  var combined=applyMedicalFilter((finalBuffer+interim).trim());
   if(combined){
    shown.textContent=combined;
    shown.classList.remove('empty');
@@ -569,6 +601,7 @@ if(SpeechRecognition){
   stopRequested=false;
   activePointerId=e?e.pointerId:null;
   finalBuffer='';
+  lastChunk='';
   recognitionError='';
   showText('',false);
 
@@ -636,7 +669,7 @@ shown.addEventListener('input',function(){
 });
 
 shown.addEventListener('blur',function(){
- activeText=shown.innerText.replace(/\r/g,'').trim();
+ activeText=applyMedicalFilter(shown.innerText.replace(/\r/g,'').trim());
  shown.textContent=activeText;
  shown.classList.toggle('empty',!activeText);
  fitText();
