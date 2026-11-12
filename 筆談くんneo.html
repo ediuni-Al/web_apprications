@@ -29,7 +29,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .category{flex-shrink:0;background:#444;padding:6px 11px;font-size:13px}
 .category.active{background:#1a73e8}
 .phrase-controls{align-items:center}
-#micBtn{flex:2;min-width:190px;background:#1a73e8;font-size:17px;min-height:48px;touch-action:none;user-select:none;-webkit-user-select:none}
+#micBtn{flex:2;min-width:190px;background:#1a73e8;font-size:17px;min-height:48px;user-select:none;-webkit-user-select:none}
 #micBtn.recording{background:#d93025;animation:pulse 1.2s infinite}
 @keyframes pulse{50%{opacity:.55}}
 #statusMsg{font-size:12px;color:#bbb;min-width:65px}
@@ -75,7 +75,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 
  <div id="control-area">
   <div class="row">
-   <button id="micBtn">🎤 話す間押し続ける（音声入力）</button>
+   <button id="micBtn">🎤 音声入力開始</button>
    <button id="questionBtn">？</button>
    <button id="exclamationBtn">！</button>
    <button id="clearBtn">画面消去</button>
@@ -187,7 +187,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
   <div class="modal-body">
    <div class="setting-row">
     <label>1. 音声入力</label>
-    <div>「話す間押し続ける（音声入力）」を押している間、マイクが音声を認識します。話し終えたら指を離してください。指がボタンの外に少しずれても、押し続けている限り認識を継続します。無音などで認識エンジンが自動終了した場合も、押している間は自動的に再開します。</div>
+    <div>「音声入力開始」を1回押すとマイクが音声の認識を始めます（認識中も前の表示内容は画面に残ります）。話し終えてもう一度ボタンを押すと、前の表示内容を消去して認識した文章を画面に表示します。無音などで認識エンジンが自動終了した場合も、終了ボタンを押すまでは自動的に再開します。</div>
     <div class="small-note">音声認識はブラウザの機能を利用します。ブラウザや通信環境によっては利用できない場合があります。</div>
    </div>
    <div class="setting-row">
@@ -319,7 +319,7 @@ function applyContextFilter(text) {
   text = text.replace(item.wrong, item.right);
  });
 
- // 2. 文脈に応じたよくある言い回しのブラッシュアップ（例：不自然な連続や表現の整形）
+ // 2. 文脈に応じたよくある言い回しのブラッシュアップ
  text = text.replace(/眼圧が高いになっています/g, '眼圧が高くなっています');
  text = text.replace(/白内障が進んでいますね進んでいます/g, '白内障が進んでいます');
 
@@ -480,10 +480,9 @@ function closeModals(){
  }
 }
 
-/* 音声認識（高度な重複排除・バッファリング制御） */
+/* 音声認識（1回押しで開始、もう1回押しで前表示を消去して表示） */
 var SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-var pointerHeld=false;
-var activePointerId=null;
+var isRecording=false;
 var stopRequested=false;
 var restartTimer=null;
 
@@ -495,30 +494,45 @@ if(SpeechRecognition){
  recognition.maxAlternatives=3;
 
  var finalBuffer='';
+ var latestInterim='';
 
  function updateMicButton(recording){
   micBtn.classList.toggle('recording',!!recording);
   micBtn.textContent=recording?
-   '録音中… 指を離すと終了':
-   '🎤 話す間押し続ける（音声入力）';
+   '⏹️ もう一度押すと終了して表示':
+   '🎤 音声入力開始';
  }
 
  function beginRecognition(){
-  if(!recognition || !pointerHeld || stopRequested)return;
+  if(!recognition || !isRecording || stopRequested)return;
   try{
    recognition.start();
   }catch(err){
-   if(pointerHeld && !stopRequested){
+   if(isRecording && !stopRequested){
     if(restartTimer)clearTimeout(restartTimer);
     restartTimer=setTimeout(beginRecognition,300);
    }
   }
  }
 
+ function commitRecognitionResult(){
+  var combined=(finalBuffer + latestInterim).trim();
+  // 現在の表示内容を消去してから新しい認識内容を表示
+  showText('',false);
+  if(combined){
+   showText(combined,true);
+   setStatus('認識完了');
+  }else if(recognitionError){
+   setStatus('エラー：'+recognitionError);
+  }else{
+   setStatus('待機中');
+  }
+ }
+
  recognition.onstart=function(){
   recognitionError='';
   updateMicButton(true);
-  setStatus('録音中');
+  setStatus('録音中（もう一度押すと確定表示）');
  };
 
  recognition.onresult=function(e){
@@ -530,12 +544,9 @@ if(SpeechRecognition){
    
    if(res.isFinal){
     if(transcript){
-     // 【重複完全排除の仕組み】
-     // すでにバッファの末尾に含まれている、または全く同じチャンクが連続して送られてきた場合は追加しない
      var cleanChunk = applyContextFilter(transcript);
      if (!finalBuffer.endsWith(cleanChunk) && finalBuffer.indexOf(cleanChunk) === -1) {
-      // 空間や接続詞を自然にするためスペースを空けずに結合
-      finalBuffer += (finalBuffer ? '' : '') + cleanChunk;
+      finalBuffer += cleanChunk;
      } else if (!finalBuffer) {
       finalBuffer = cleanChunk;
      }
@@ -544,18 +555,8 @@ if(SpeechRecognition){
     interim += res[0].transcript;
    }
   }
-
-  // 確定バッファ ＋ 現在喋っている暫定（interim）を合わせて表示
-  var previewText = finalBuffer + (interim ? (finalBuffer ? '' : '') + interim : '');
-  var combined = applyContextFilter(previewText.trim());
-  
-  if(combined){
-   shown.textContent=combined;
-   shown.classList.remove('empty');
-   shown.classList.toggle('interim',!!interim && !finalBuffer);
-   activeText=combined;
-   fitText();
-  }
+  latestInterim = interim;
+  // 録音中は前の表示を維持するため、ここでは画面表示を更新しない
  };
 
  recognition.onerror=function(e){
@@ -569,12 +570,13 @@ if(SpeechRecognition){
   ];
 
   if(fatalErrors.indexOf(recognitionError)>=0){
-   pointerHeld=false;
+   isRecording=false;
    stopRequested=true;
    if(restartTimer){
     clearTimeout(restartTimer);
     restartTimer=null;
    }
+   updateMicButton(false);
    setStatus('音声エラー：'+recognitionError);
   }
  };
@@ -585,82 +587,62 @@ if(SpeechRecognition){
    restartTimer=null;
   }
 
-  if(pointerHeld && !stopRequested){
+  if(isRecording && !stopRequested){
+   // 無音タイムアウト等で自動終了した場合は未確定分を確定バッファへ移して再開
+   if(latestInterim.trim()){
+    var cleanInterim=applyContextFilter(latestInterim.trim());
+    if(!finalBuffer.endsWith(cleanInterim)){
+     finalBuffer+=cleanInterim;
+    }
+    latestInterim='';
+   }
    setStatus('認識を再開しています…');
    restartTimer=setTimeout(beginRecognition,250);
    return;
   }
 
   updateMicButton(false);
+  commitRecognitionResult();
 
-  if(finalBuffer.trim()){
-   showText(finalBuffer,true);
-   setStatus('認識完了');
-  }else if(recognitionError){
-   setStatus('エラー：'+recognitionError);
-  }else{
-   setStatus('待機中');
-  }
-
-  pointerHeld=false;
-  activePointerId=null;
+  isRecording=false;
   stopRequested=false;
  };
 
- function startRec(e){
+ function toggleRec(e){
   if(e)e.preventDefault();
-  if(pointerHeld || !recognition)return;
-  if(e && e.isPrimary===false)return;
+  if(!recognition)return;
 
-  pointerHeld=true;
-  stopRequested=false;
-  activePointerId=e?e.pointerId:null;
-  finalBuffer='';
-  recognitionError='';
-  showText('',false);
-
-  if(e && e.pointerId!==undefined){
-   try{micBtn.setPointerCapture(e.pointerId);}catch(err){}
-  }
-
-  beginRecognition();
- }
-
- function stopRec(e){
-  if(e)e.preventDefault();
-  if(!pointerHeld)return;
-
-  if(e && activePointerId!==null &&
-     e.pointerId!==undefined &&
-     e.pointerId!==activePointerId)return;
-
-  pointerHeld=false;
-  stopRequested=true;
-
-  if(restartTimer){
-   clearTimeout(restartTimer);
-   restartTimer=null;
-  }
-
-  try{
-   recognition.stop();
-  }catch(err){
-   updateMicButton(false);
-   if(finalBuffer.trim()){
-    showText(finalBuffer,true);
-    setStatus('認識完了');
-   }else{
-    setStatus(recognitionError?'エラー：'+recognitionError:'待機中');
-   }
-   activePointerId=null;
+  if(!isRecording){
+   // 1回目の押下：認識開始（現在の表示はそのまま保持）
+   isRecording=true;
    stopRequested=false;
+   finalBuffer='';
+   latestInterim='';
+   recognitionError='';
+   updateMicButton(true);
+   setStatus('起動中…');
+   beginRecognition();
+  }else{
+   // 2回目の押下：認識終了して前の表示を消去＆新結果を表示
+   isRecording=false;
+   stopRequested=true;
+
+   if(restartTimer){
+    clearTimeout(restartTimer);
+    restartTimer=null;
+   }
+
+   try{
+    recognition.stop();
+   }catch(err){
+    updateMicButton(false);
+    commitRecognitionResult();
+    stopRequested=false;
+   }
   }
  }
 
- micBtn.addEventListener('pointerdown',startRec);
- micBtn.addEventListener('pointerup',stopRec);
- micBtn.addEventListener('pointercancel',stopRec);
- micBtn.addEventListener('lostpointercapture',function(){});
+ micBtn.addEventListener('click',toggleRec);
  micBtn.addEventListener('contextmenu',function(e){e.preventDefault();});
 
 }else{
