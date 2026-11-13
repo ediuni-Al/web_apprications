@@ -46,15 +46,18 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .modal-body{overflow:auto;display:flex;flex-direction:column;gap:10px;min-height:0}
 .modal-footer{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .modal input,.modal select,.modal textarea{width:100%;padding:10px;border-radius:7px;border:1px solid #666;background:#111;color:#fff;font-size:16px}
-.phrase-item,.history-item{display:flex;gap:8px;align-items:center;background:#333;padding:9px;border-radius:8px}
-.phrase-item span,.history-item span{flex:1;overflow-wrap:anywhere}
-.phrase-item button,.history-item button{padding:6px 9px;font-size:13px}
+.phrase-item,.history-item,.dict-item{display:flex;gap:8px;align-items:center;background:#333;padding:9px;border-radius:8px}
+.phrase-item span,.history-item span,.dict-item span{flex:1;overflow-wrap:anywhere;font-size:14px}
+.phrase-item button,.history-item button,.dict-item button{padding:6px 9px;font-size:13px}
+.dict-inputs{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.dict-inputs input{flex:1;min-width:130px;padding:8px;font-size:14px}
+#dictList{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;padding-right:2px}
 .danger{background:#a52b2b}
 .primary{background:#1a73e8}
 .secondary{background:#555}
 .green{background:#176b42}
 .setting-row{display:flex;flex-direction:column;gap:6px;background:#2a2a2a;padding:11px;border-radius:8px}
-.setting-row label{font-size:14px;color:#ddd}
+.setting-row label{font-size:14px;color:#ddd;font-weight:bold}
 .setting-row input[type=range]{width:100%}
 .small-note{font-size:12px;color:#bbb;line-height:1.5}
 #fullscreenBtn{position:fixed;right:12px;bottom:12px;z-index:40;background:#176b42;font-size:13px;padding:9px 13px;box-shadow:0 2px 8px #0005}
@@ -116,7 +119,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
    <button id="addPhraseBtn" class="primary">追加</button>
   </div>
   <div class="modal-footer">
-   <button id="exportBtn">定型文をJSON保存</button>
+   <button id="exportBtn">定型文・辞書をJSON保存</button>
    <button id="importBtn">JSON読み込み</button>
    <input type="file" id="importFile" accept=".json,application/json" hidden>
   </div>
@@ -126,7 +129,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 <div id="modal-settings" class="modal">
  <div class="modal-content">
   <div class="modal-header">
-   <span>表示設定</span>
+   <span>表示・音声補正設定</span>
    <button class="closeModal secondary">閉じる</button>
   </div>
   <div class="modal-body">
@@ -158,6 +161,22 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <label><input type="checkbox" id="keepHistory" style="width:auto"> 会話履歴をこの端末内に一時保存（最大30件）</label>
     <div class="small-note">初期設定はOFF。患者氏名など個人情報を含む文章は保存しない運用を推奨します。</div>
    </div>
+
+   <!-- 補正フィルター（医療用語・カスタム辞書）管理セクション -->
+   <div class="setting-row">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+     <label>補正フィルター（単語自動変換）</label>
+     <button id="resetDictBtn" class="secondary" style="padding:4px 8px;font-size:12px">初期辞書に戻す</button>
+    </div>
+    <div class="small-note">音声認識や手入力で誤変換されやすい言葉を自動置換します。「|」で区切ると複数の読み・誤変換をまとめて登録できます（例：<code>さんどう|産銅|参道</code> → <code>散瞳</code>）。</div>
+    <div class="dict-inputs">
+     <input type="text" id="dictWrongInput" placeholder="変換前（例：さんどう|参道）">
+     <input type="text" id="dictRightInput" placeholder="変換後（例：散瞳）">
+     <button id="addDictBtn" class="primary" style="padding:8px 12px">追加</button>
+    </div>
+    <div id="dictList"></div>
+   </div>
+
    <div class="setting-row">
     <button id="helpBtn" class="green">HELP：操作方法を見る</button>
    </div>
@@ -196,11 +215,11 @@ button:disabled{opacity:.45;cursor:not-allowed}
    </div>
    <div class="setting-row">
     <label>3. 定型文</label>
-    <div>画面下部のカテゴリーを選び、表示したい定型文を押します。「定型文管理」から追加・編集・削除ができます。JSON保存・読み込みで定型文をバックアップできます。</div>
+    <div>画面下部のカテゴリーを選び、表示したい定型文を押します。「定型文管理」から追加・編集・削除ができます。JSON保存・読み込みで定型文と補正辞書をバックアップできます。</div>
    </div>
    <div class="setting-row">
-    <label>4. 表示設定・履歴</label>
-    <div>文字サイズ、配色、フォント、自動サイズ調整を変更できます。履歴保存は初期状態でOFFです。保存をONにした場合、文章はこの端末のブラウザ内に保存されます。患者氏名など個人情報を含む文章は保存しないでください。</div>
+    <label>4. 表示設定・補正フィルター・履歴</label>
+    <div>文字サイズ、配色、フォント、自動サイズ調整のほか、「補正フィルター」で独自の医学用語や誤変換の置換ルールを追加できます。履歴保存は初期状態でOFFです。</div>
    </div>
    <div class="setting-row">
     <label>5. 初期画面</label>
@@ -218,6 +237,7 @@ var $=function(id){return document.getElementById(id);};
 var KEY_PH='hitsudan_neo_phrases_v3';
 var KEY_SET='hitsudan_neo_settings_v3';
 var KEY_HIST='hitsudan_neo_history_v1';
+var KEY_DICT='hitsudan_neo_dict_v1';
 
 function lsGet(k,d){
  try{
@@ -294,38 +314,161 @@ var recognition=null;
 var recognitionError='';
 var history=lsGet(KEY_HIST,[]);
 
-/* 医学用語・文脈に基づく補正フィルター（置換および文脈ブラッシュアップ） */
-var medicalDictionary = [
-  { wrong: /はくないしょう|白内障/g, right: '白内障' },
-  { wrong: /りょくないしょう|緑内障/g, right: '緑内障' },
-  { wrong: /がんあつ|眼圧/g, right: '眼圧' },
-  { wrong: /もうまく|網膜/g, right: '網膜' },
-  { wrong: /かくまく|角膜/g, right: '角膜' },
-  { wrong: /しょうしたい|硝子体/g, right: '硝子体' },
-  { wrong: /おうはん|黄斑/g, right: '黄斑' },
-  { wrong: /てんがん|点眼/g, right: '点眼' },
-  { wrong: /てんがんやく|点眼薬/g, right: '点眼薬' },
-  { wrong: /しつめい|し失明/g, right: '失明' },
-  { wrong: /こうぶいいーじーえふこうたい|抗VEGF抗体/g, right: '抗VEGF抗体' },
-  { wrong: /かれい|加齢/g, right: '加齢' },
-
-  { wrong: /しやけんさ|視野検査/g, right: '視野検査' },
-  { wrong: /せんじょう|洗浄/g, right: '洗浄' },
-  { wrong: /さんどう|産銅|参道|散同|散瞳/g, right: '散瞳' }
+/* 医学用語・文脈に基づく補正フィルター（デフォルト辞書＋ユーザー追加辞書） */
+var defaultDictionary = [
+  { wrong: 'はくないしょう', right: '白内障' },
+  { wrong: 'りょくないしょう', right: '緑内障' },
+  { wrong: 'がんあつ', right: '眼圧' },
+  { wrong: 'もうまく', right: '網膜' },
+  { wrong: 'かくまく', right: '角膜' },
+  { wrong: 'しょうしたい', right: '硝子体' },
+  { wrong: 'おうはん', right: '黄斑' },
+  { wrong: 'てんがん', right: '点眼' },
+  { wrong: 'てんがんやく', right: '点眼薬' },
+  { wrong: 'しつめい|し失明', right: '失明' },
+  { wrong: 'こうぶいいーじーえふこうたい', right: '抗VEGF抗体' },
+  { wrong: 'かれい', right: '加齢' },
+  { wrong: 'しやけんさ', right: '視野検査' },
+  { wrong: 'せんじょう', right: '洗浄' },
+  { wrong: 'さんどう|産銅|参道|散同', right: '散瞳' }
 ];
+
+var customDictionary = lsGet(KEY_DICT, null);
+if(!Array.isArray(customDictionary)){
+ customDictionary = defaultDictionary.map(function(item){
+  return { wrong: item.wrong, right: item.right };
+ });
+ lsSet(KEY_DICT, customDictionary);
+}
+
+function escapeRegExp(str){
+ return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function buildPattern(wrongStr){
+ var parts = String(wrongStr || '').split('|').map(function(s){
+  return s.trim();
+ }).filter(Boolean);
+ if(!parts.length) return null;
+ // 長い候補から優先的にマッチさせる
+ parts.sort(function(a,b){ return b.length - a.length; });
+ return new RegExp(parts.map(escapeRegExp).join('|'), 'g');
+}
 
 function applyContextFilter(text) {
  if(!text) return '';
  
- medicalDictionary.forEach(function(item){
-  text = text.replace(item.wrong, item.right);
+ // 1. ユーザー設定・医療用語辞書による置換
+ customDictionary.forEach(function(item){
+  if(!item || !item.wrong || !item.right) return;
+  var rx = buildPattern(item.wrong);
+  if(rx){
+   text = text.replace(rx, item.right);
+  }
  });
 
+ // 2. 文脈に応じたよくある言い回しのブラッシュアップ
  text = text.replace(/眼圧が高いになっています/g, '眼圧が高くなっています');
  text = text.replace(/白内障が進んでいますね進んでいます/g, '白内障が進んでいます');
 
  return text;
 }
+
+function renderDictList(){
+ var list=$('dictList');
+ if(!list)return;
+ list.innerHTML='';
+
+ if(!customDictionary.length){
+  var empty=document.createElement('div');
+  empty.className='small-note';
+  empty.textContent='登録されている補正フィルターはありません。';
+  list.appendChild(empty);
+  return;
+ }
+
+ customDictionary.forEach(function(item, idx){
+  var row=document.createElement('div');
+  row.className='dict-item';
+
+  var span=document.createElement('span');
+  span.textContent=item.wrong + '  →  ' + item.right;
+
+  var editBtn=document.createElement('button');
+  editBtn.textContent='編集';
+  editBtn.onclick=function(){
+   var newWrong=prompt('変換前の語句（「|」区切りで複数指定可）', item.wrong);
+   if(newWrong===null)return;
+   newWrong=newWrong.trim();
+   if(!newWrong)return;
+
+   var newRight=prompt('変換後の正しい語句', item.right);
+   if(newRight===null)return;
+   newRight=newRight.trim();
+   if(!newRight)return;
+
+   customDictionary[idx]={wrong:newWrong, right:newRight};
+   lsSet(KEY_DICT, customDictionary);
+   renderDictList();
+  };
+
+  var delBtn=document.createElement('button');
+  delBtn.className='danger';
+  delBtn.textContent='削除';
+  delBtn.onclick=function(){
+   customDictionary.splice(idx, 1);
+   lsSet(KEY_DICT, customDictionary);
+   renderDictList();
+  };
+
+  row.appendChild(span);
+  row.appendChild(editBtn);
+  row.appendChild(delBtn);
+  list.appendChild(row);
+ });
+}
+
+$('addDictBtn').onclick=function(){
+ var w=$('dictWrongInput').value.trim();
+ var r=$('dictRightInput').value.trim();
+ if(!w || !r)return;
+
+ // 同じ変換後ワードが既にあれば候補を統合するか新規追加
+ var existingIdx=-1;
+ for(var i=0;i<customDictionary.length;i++){
+  if(customDictionary[i].right===r){
+   existingIdx=i;
+   break;
+  }
+ }
+
+ if(existingIdx>=0){
+  var currentParts=customDictionary[existingIdx].wrong.split('|').map(function(s){return s.trim();});
+  var addParts=w.split('|').map(function(s){return s.trim();}).filter(Boolean);
+  addParts.forEach(function(p){
+   if(currentParts.indexOf(p)===-1) currentParts.push(p);
+  });
+  customDictionary[existingIdx].wrong=currentParts.join('|');
+ }else{
+  customDictionary.unshift({wrong:w, right:r});
+ }
+
+ lsSet(KEY_DICT, customDictionary);
+ $('dictWrongInput').value='';
+ $('dictRightInput').value='';
+ renderDictList();
+ setStatus('補正ルールを追加しました');
+};
+
+$('resetDictBtn').onclick=function(){
+ if(!confirm('補正フィルターを初期の眼科用語辞書に戻しますか？（追加したルールは上書きされます）'))return;
+ customDictionary = defaultDictionary.map(function(item){
+  return { wrong: item.wrong, right: item.right };
+ });
+ lsSet(KEY_DICT, customDictionary);
+ renderDictList();
+ setStatus('初期辞書に戻しました');
+};
 
 function setStatus(s){
  statusMsg.textContent=s;
@@ -368,6 +511,7 @@ function applySettings(){
  $('fontSelect').value=settings.font;
  $('autoFit').checked=!!settings.autoFit;
  $('keepHistory').checked=!!settings.keepHistory;
+ renderDictList();
  fitText();
 }
 
@@ -481,7 +625,7 @@ function closeModals(){
  }
 }
 
-/* 音声認識（リアルタイムプレビュー復活＆トグル確定） */
+/* 音声認識（リアルタイムプレビュー＆トグル確定） */
 var SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
 var isRecording=false;
 var stopRequested=false;
@@ -520,7 +664,6 @@ if(SpeechRecognition){
   var rawCombined = finalBuffer + latestInterim;
   var combined = applyContextFilter(rawCombined.trim());
   
-  // 2回目の押下時：ここで初めて古い表示をクリアして新しい確定結果を表示
   showText('',false);
   if(combined){
    showText(combined,true);
@@ -560,8 +703,6 @@ if(SpeechRecognition){
   }
   latestInterim = interim;
 
-  // 【リアルタイム表示の復活】
-  // 録音中は、現在の確定バッファと入力中の暫定テキストを合わせて薄い文字（interimクラス）でリアルタイム表示
   var previewText = finalBuffer + interim;
   var combinedPreview = applyContextFilter(previewText.trim());
   if(combinedPreview){
@@ -626,7 +767,6 @@ if(SpeechRecognition){
   if(!recognition)return;
 
   if(!isRecording){
-   // 1回目の押下：録音開始（前の表示はそのまま残した状態でプレビューを開始）
    isRecording=true;
    stopRequested=false;
    finalBuffer='';
@@ -636,7 +776,6 @@ if(SpeechRecognition){
    setStatus('起動中…');
    beginRecognition();
   }else{
-   // 2回目の押下：録音終了＆古い表示を消去して確定結果をクッキリ表示
    isRecording=false;
    stopRequested=true;
 
@@ -762,13 +901,13 @@ $('addPhraseBtn').onclick=function(){
 
 $('exportBtn').onclick=function(){
  var blob=new Blob(
-  [JSON.stringify({version:1,categories:categories,phrases:phrases},null,2)],
+  [JSON.stringify({version:2,categories:categories,phrases:phrases,dictionary:customDictionary},null,2)],
   {type:'application/json'}
  );
  var url=URL.createObjectURL(blob);
  var a=document.createElement('a');
  a.href=url;
- a.download='筆談くんneo_定型文.json';
+ a.download='筆談くんneo_定型文と辞書.json';
  a.click();
  setTimeout(function(){URL.revokeObjectURL(url);},1000);
 };
@@ -799,7 +938,18 @@ $('importFile').onchange=function(){
 
    phrases=normalized;
    persistPhrases();
-   setStatus('定型文を読み込みました');
+
+   if(data && Array.isArray(data.dictionary)){
+    customDictionary=data.dictionary.filter(function(d){
+     return d && typeof d.wrong==='string' && typeof d.right==='string' && d.wrong.trim() && d.right.trim();
+    }).map(function(d){
+     return {wrong:d.wrong.trim(), right:d.right.trim()};
+    });
+    lsSet(KEY_DICT,customDictionary);
+    renderDictList();
+   }
+
+   setStatus('定型文・辞書を読み込みました');
   }catch(e){
    setStatus('JSONファイルを読み込めませんでした');
   }
