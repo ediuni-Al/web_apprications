@@ -297,6 +297,10 @@ var history=lsGet(KEY_HIST,[]);
 /* 医学用語・文脈に基づく補正フィルター（置換および文脈ブラッシュアップ） */
 var medicalDictionary = [
   { wrong: /はくないしょう|白内障/g, right: '白内障' },
+  { wrong: /ぞうしょくせい|増殖性/g, right: '増殖性' },
+  { wrong: /ぞうしょくせいとうにょうびょうもうまくしょう|増殖性糖尿病網膜症/g, right: '増殖性糖尿病網膜症' },
+  { wrong: /おうはん|黄斑/g, right: '黄斑' },
+  { wrong: /おうはんぜんまく|黄斑前膜/g, right: '黄斑前膜' },
   { wrong: /りょくないしょう|緑内障/g, right: '緑内障' },
   { wrong: /がんあつ|眼圧/g, right: '眼圧' },
   { wrong: /もうまく|網膜/g, right: '網膜' },
