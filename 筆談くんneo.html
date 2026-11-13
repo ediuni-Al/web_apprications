@@ -187,7 +187,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
   <div class="modal-body">
    <div class="setting-row">
     <label>1. 音声入力</label>
-    <div>「音声入力開始」を1回押すとマイクが音声の認識を始めます（認識中も前の表示内容は画面に残ります）。話し終えてもう一度ボタンを押すと、前の表示内容を消去して認識した文章を画面に表示します。無音などで認識エンジンが自動終了した場合も、終了ボタンを押すまでは自動的に再開します。</div>
+    <div>「音声入力開始」を1回押すとマイクが音声を認識し、認識中の文字列がリアルタイムに画面に薄く表示されます。話し終えてもう一度ボタンを押すと確定します。認識中に画面をクリックして直接修正することも可能です。</div>
     <div class="small-note">音声認識はブラウザの機能を利用します。ブラウザや通信環境によっては利用できない場合があります。</div>
    </div>
    <div class="setting-row">
@@ -314,12 +314,10 @@ var medicalDictionary = [
 function applyContextFilter(text) {
  if(!text) return '';
  
- // 1. 単語単位の医学用語置換
  medicalDictionary.forEach(function(item){
   text = text.replace(item.wrong, item.right);
  });
 
- // 2. 文脈に応じたよくある言い回しのブラッシュアップ
  text = text.replace(/眼圧が高いになっています/g, '眼圧が高くなっています');
  text = text.replace(/白内障が進んでいますね進んでいます/g, '白内障が進んでいます');
 
@@ -480,7 +478,7 @@ function closeModals(){
  }
 }
 
-/* 音声認識（1回押しで開始、もう1回押しで前表示を消去して表示） */
+/* 音声認識（リアルタイム表示・修正対応版） */
 var SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
 var isRecording=false;
 var stopRequested=false;
@@ -499,7 +497,7 @@ if(SpeechRecognition){
  function updateMicButton(recording){
   micBtn.classList.toggle('recording',!!recording);
   micBtn.textContent=recording?
-   '⏹️ もう一度押すと終了して表示':
+   '⏹️ もう一度押すと確定':
    '🎤 音声入力開始';
  }
 
@@ -516,8 +514,10 @@ if(SpeechRecognition){
  }
 
  function commitRecognitionResult(){
-  var combined=(finalBuffer + latestInterim).trim();
-  // 現在の表示内容を消去してから新しい認識内容を表示
+  // ユーザーが手動で直接編集した内容を優先するため、もしフォーカス中や編集が行われていたらそれを活かす
+  var currentEdited = shown.innerText.replace(/\r/g,'').trim();
+  var combined = currentEdited || (finalBuffer + latestInterim).trim();
+  
   showText('',false);
   if(combined){
    showText(combined,true);
@@ -532,7 +532,7 @@ if(SpeechRecognition){
  recognition.onstart=function(){
   recognitionError='';
   updateMicButton(true);
-  setStatus('録音中（もう一度押すと確定表示）');
+  setStatus('録音中（リアルタイム表示）');
  };
 
  recognition.onresult=function(e){
@@ -556,7 +556,16 @@ if(SpeechRecognition){
    }
   }
   latestInterim = interim;
-  // 録音中は前の表示を維持するため、ここでは画面表示を更新しない
+
+  // ★ 録音中：リアルタイムに画面へ反映（認識中は半透明 `.interim` にする）
+  var liveText = applyContextFilter((finalBuffer + latestInterim).trim());
+  if(liveText){
+   activeText = liveText;
+   shown.textContent = liveText;
+   shown.classList.remove('empty');
+   shown.classList.add('interim');
+   fitText();
+  }
  };
 
  recognition.onerror=function(e){
@@ -588,7 +597,6 @@ if(SpeechRecognition){
   }
 
   if(isRecording && !stopRequested){
-   // 無音タイムアウト等で自動終了した場合は未確定分を確定バッファへ移して再開
    if(latestInterim.trim()){
     var cleanInterim=applyContextFilter(latestInterim.trim());
     if(!finalBuffer.endsWith(cleanInterim)){
@@ -613,7 +621,7 @@ if(SpeechRecognition){
   if(!recognition)return;
 
   if(!isRecording){
-   // 1回目の押下：認識開始（現在の表示はそのまま保持）
+   // 1回目の押下：認識開始
    isRecording=true;
    stopRequested=false;
    finalBuffer='';
@@ -623,7 +631,7 @@ if(SpeechRecognition){
    setStatus('起動中…');
    beginRecognition();
   }else{
-   // 2回目の押下：認識終了して前の表示を消去＆新結果を表示
+   // 2回目の押下：認識終了・確定
    isRecording=false;
    stopRequested=true;
 
@@ -668,6 +676,7 @@ shown.addEventListener('blur',function(){
  activeText=applyContextFilter(shown.innerText.replace(/\r/g,'').trim());
  shown.textContent=activeText;
  shown.classList.toggle('empty',!activeText);
+ shown.classList.remove('interim'); // 編集完了時は通常の濃さに戻す
  fitText();
 
  if(activeText && activeText!==textAtFocus && settings.keepHistory){
