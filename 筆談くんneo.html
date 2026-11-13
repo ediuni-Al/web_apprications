@@ -247,7 +247,7 @@ var defaultPhrases=[
  {category:'緑内障',text:'眼圧が高くなっています。'},
  {category:'緑内障',text:'視野検査で状態を確認します。'},
  {category:'網膜',text:'網膜の状態を詳しく調べます。'},
- {category:'術後',text:'手術後の経過は順調です。'},
+ {category:'術後',text:"手術後の経過は順順です。"},
  {category:'術後',text:'目をこすらないでください。'},
  {category:'術後',text:'点眼を指示どおり続けてください。'},
  {category:'その他',text:'待合室でしばらくお待ちください。'}
@@ -296,25 +296,24 @@ var history=lsGet(KEY_HIST,[]);
 
 /* 医学用語・文脈に基づく補正フィルター（置換および文脈ブラッシュアップ） */
 var medicalDictionary = [
-  { wrong: /はくないしょう/g, right: '白内障' },
-  { wrong: /りょくないしょう/g, right: '緑内障' },
-  { wrong: /がんあつ/g, right: '眼圧' },
-  { wrong: /もうまく/g, right: '網膜' },
-  { wrong: /かくまく/g, right: '角膜' },
-  { wrong: /しょうしたい/g, right: '硝子体' },
-  { wrong: /おうはん/g, right: '黄斑' },
-  { wrong: /てんがん/g, right: '点眼' },
-  { wrong: /てんがんやく/g, right: '点眼薬' },
-  { wrong: /しやけんさ/g, right: '視野検査' },
-  { wrong: /せんじょう/g, right: '洗浄' },
-  { wrong: /散瞳/g, right: '散瞳' },
-  { wrong: /さんどう/g, right: '散瞳' }
+  { wrong: /はくないしょう|白内障/g, right: '白内障' },
+  { wrong: /りょくないしょう|緑内障/g, right: '緑内障' },
+  { wrong: /がんあつ|眼圧/g, right: '眼圧' },
+  { wrong: /もうまく|網膜/g, right: '網膜' },
+  { wrong: /かくまく|角膜/g, right: '角膜' },
+  { wrong: /しょうしたい|硝子体/g, right: '硝子体' },
+  { wrong: /おうはん|黄斑/g, right: '黄斑' },
+  { wrong: /てんがん|点眼/g, right: '点眼' },
+  { wrong: /てんがんやく|点眼薬/g, right: '点眼薬' },
+  { wrong: /しやけんさ|視野検査/g, right: '視野検査' },
+  { wrong: /せんじょう|洗浄/g, right: '洗浄' },
+  { wrong: /さんどう|産銅|参道|散同|散瞳/g, right: '散瞳' }
 ];
 
 function applyContextFilter(text) {
  if(!text) return '';
  
- // 1. 単語単位の医学用語置換
+ // 1. 単語単位の医学用語置換（誤変換されやすい漢字やひらがなをまとめてカバー）
  medicalDictionary.forEach(function(item){
   text = text.replace(item.wrong, item.right);
  });
@@ -516,11 +515,9 @@ if(SpeechRecognition){
  }
 
  function commitRecognitionResult(){
-  // 確定処理時に必ず applyContextFilter を通過させるように修正
   var rawCombined = finalBuffer + latestInterim;
   var combined = applyContextFilter(rawCombined.trim());
   
-  // 現在の表示内容を消去してから新しい認識内容を表示
   showText('',false);
   if(combined){
    showText(combined,true);
@@ -880,7 +877,7 @@ $('exitBtn').onclick=function(){
 };
 
 document.addEventListener('keydown',function(e){
- if(e.key==='Escape')closeModals();
+ e.key==='Escape' && closeModals();
 });
 
 applySettings();
