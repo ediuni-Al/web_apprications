@@ -46,12 +46,9 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .modal-body{overflow:auto;display:flex;flex-direction:column;gap:10px;min-height:0}
 .modal-footer{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .modal input,.modal select,.modal textarea{width:100%;padding:10px;border-radius:7px;border:1px solid #666;background:#111;color:#fff;font-size:16px}
-.phrase-item,.history-item,.dict-item{display:flex;gap:8px;align-items:center;background:#333;padding:9px;border-radius:8px}
-.phrase-item span,.history-item span,.dict-item span{flex:1;overflow-wrap:anywhere}
-.phrase-item button,.history-item button,.dict-item button{padding:6px 9px;font-size:13px}
-.dict-inputs{display:flex;gap:6px;flex-wrap:wrap}
-.dict-inputs input{flex:1;min-width:130px;font-size:14px;padding:8px}
-.dict-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto}
+.phrase-item,.history-item{display:flex;gap:8px;align-items:center;background:#333;padding:9px;border-radius:8px}
+.phrase-item span,.history-item span{flex:1;overflow-wrap:anywhere}
+.phrase-item button,.history-item button{padding:6px 9px;font-size:13px}
 .danger{background:#a52b2b}
 .primary{background:#1a73e8}
 .secondary{background:#555}
@@ -129,7 +126,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 <div id="modal-settings" class="modal">
  <div class="modal-content">
   <div class="modal-header">
-   <span>表示・辞書設定</span>
+   <span>表示設定</span>
    <button class="closeModal secondary">閉じる</button>
   </div>
   <div class="modal-body">
@@ -161,21 +158,6 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <label><input type="checkbox" id="keepHistory" style="width:auto"> 会話履歴をこの端末内に一時保存（最大30件）</label>
     <div class="small-note">初期設定はOFF。患者氏名など個人情報を含む文章は保存しない運用を推奨します。</div>
    </div>
-
-   <div class="setting-row">
-    <label>眼科用語・音声認識補正辞書</label>
-    <div class="small-note">音声認識の誤変換や読み（ひらがな・カタカナ・誤字）を指定した用語に自動置換します。</div>
-    <div class="dict-inputs">
-     <input type="text" id="dictWrongInput" placeholder="認識される語（例：かれいおうはんへんせい）">
-     <input type="text" id="dictRightInput" placeholder="正しい表記（例：加齢黄斑変性）">
-     <button id="addDictBtn" class="primary">追加</button>
-    </div>
-    <div id="dictList" class="dict-list"></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-     <button id="resetDictBtn" class="secondary" style="font-size:12px;padding:6px 10px">辞書を初期状態に戻す</button>
-    </div>
-   </div>
-
    <div class="setting-row">
     <button id="helpBtn" class="green">HELP：操作方法を見る</button>
    </div>
@@ -205,7 +187,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
   <div class="modal-body">
    <div class="setting-row">
     <label>1. 音声入力</label>
-    <div>「音声入力開始」ボタンを押した瞬間に画面がクリアされ、マイクが音声を認識します。認識中の文字列がリアルタイムに画面に薄く表示されます。話し終えてもう一度ボタンを押すと確定します。認識中に画面をクリックして直接修正することも可能です。</div>
+    <div>「音声入力開始」を1回押すとマイクが音声の認識を始めます（認識中も前の表示内容は画面に残ります）。話し終えてもう一度ボタンを押すと、前の表示内容を消去して認識した文章を画面に表示します。無音などで認識エンジンが自動終了した場合も、終了ボタンを押すまでは自動的に再開します。</div>
     <div class="small-note">音声認識はブラウザの機能を利用します。ブラウザや通信環境によっては利用できない場合があります。</div>
    </div>
    <div class="setting-row">
@@ -217,8 +199,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <div>画面下部のカテゴリーを選び、表示したい定型文を押します。「定型文管理」から追加・編集・削除ができます。JSON保存・読み込みで定型文をバックアップできます。</div>
    </div>
    <div class="setting-row">
-    <label>4. 表示設定・眼科辞書・履歴</label>
-    <div>文字サイズ、配色、フォント、自動サイズ調整を変更できます。「設定」内の眼科辞書に読みや誤認識パターンを登録すると、音声認識時に自動補正されます。履歴保存は初期状態でOFFです。保存をONにした場合、文章はこの端末のブラウザ内に保存されます。患者氏名など個人情報を含む文章は保存しないでください。</div>
+    <label>4. 表示設定・履歴</label>
+    <div>文字サイズ、配色、フォント、自動サイズ調整を変更できます。履歴保存は初期状態でOFFです。保存をONにした場合、文章はこの端末のブラウザ内に保存されます。患者氏名など個人情報を含む文章は保存しないでください。</div>
    </div>
    <div class="setting-row">
     <label>5. 初期画面</label>
@@ -236,7 +218,6 @@ var $=function(id){return document.getElementById(id);};
 var KEY_PH='hitsudan_neo_phrases_v3';
 var KEY_SET='hitsudan_neo_settings_v3';
 var KEY_HIST='hitsudan_neo_history_v1';
-var KEY_DICT='hitsudan_neo_medical_dict_v1';
 
 function lsGet(k,d){
  try{
@@ -313,119 +294,36 @@ var recognition=null;
 var recognitionError='';
 var history=lsGet(KEY_HIST,[]);
 
-/* 医学用語・文脈に基づく補正フィルター（localStorageで管理） */
-var defaultMedicalDictionary = [
-  { wrong: 'かれいおうはんへんせい', right: '加齢黄斑変性' },
-  { wrong: 'こうぶいいーじえふこうたい', right: '抗VEGF抗体' },
-  { wrong: 'はくないしょう', right: '白内障' },
-  { wrong: 'りょくないしょう', right: '緑内障' },
-  { wrong: 'がんあつ', right: '眼圧' },
-  { wrong: 'もうまく', right: '網膜' },
-  { wrong: 'かくまく', right: '角膜' },
-  { wrong: 'しょうしたい', right: '硝子体' },
-  { wrong: 'おうはん', right: '黄斑' },
-  { wrong: 'てんがん', right: '点眼' },
-  { wrong: 'てんがんやく', right: '点眼薬' },
-  { wrong: 'しやけんさ', right: '視野検査' },
-  { wrong: 'せんじょう', right: '洗浄' },
-  { wrong: 'さんどう', right: '散瞳' }
+/* 医学用語・文脈に基づく補正フィルター（置換および文脈ブラッシュアップ） */
+var medicalDictionary = [
+  { wrong: /はくないしょう/g, right: '白内障' },
+  { wrong: /りょくないしょう/g, right: '緑内障' },
+  { wrong: /がんあつ/g, right: '眼圧' },
+  { wrong: /もうまく/g, right: '網膜' },
+  { wrong: /かくまく/g, right: '角膜' },
+  { wrong: /しょうしたい/g, right: '硝子体' },
+  { wrong: /おうはん/g, right: '黄斑' },
+  { wrong: /てんがん/g, right: '点眼' },
+  { wrong: /てんがんやく/g, right: '点眼薬' },
+  { wrong: /しやけんさ/g, right: '視野検査' },
+  { wrong: /せんじょう/g, right: '洗浄' },
+  { wrong: /散瞳/g, right: '散瞳' },
+  { wrong: /さんどう/g, right: '散瞳' }
 ];
-
-var medicalDictionary = lsGet(KEY_DICT, defaultMedicalDictionary);
-
-// 既存ユーザーのデータにも新規デフォルト2語が未登録なら自動マージ
-(function ensureNewDefaults(){
- var added = false;
- var mustHave = [
-  { wrong: 'かれいおうはんへんせい', right: '加齢黄斑変性' },
-  { wrong: 'こうぶいいーじえふこうたい', right: '抗VEGF抗体' }
- ];
- mustHave.forEach(function(m){
-  var exists = medicalDictionary.some(function(item){
-   return item.wrong === m.wrong && item.right === m.right;
-  });
-  if(!exists){
-   medicalDictionary.unshift(m);
-   added = true;
-  }
- });
- if(added) lsSet(KEY_DICT, medicalDictionary);
-})();
-
-function escapeRegExp(s){
- return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 function applyContextFilter(text) {
  if(!text) return '';
-
- // 長い一致語句を優先して置換
- var sortedDict = medicalDictionary.slice().sort(function(a, b){
-  return (b.wrong || '').length - (a.wrong || '').length;
+ 
+ // 1. 単語単位の医学用語置換
+ medicalDictionary.forEach(function(item){
+  text = text.replace(item.wrong, item.right);
  });
 
- sortedDict.forEach(function(item){
-  if(item && item.wrong && item.right){
-   var re = new RegExp(escapeRegExp(item.wrong), 'gi');
-   text = text.replace(re, item.right);
-  }
- });
-
+ // 2. 文脈に応じたよくある言い回しのブラッシュアップ
  text = text.replace(/眼圧が高いになっています/g, '眼圧が高くなっています');
  text = text.replace(/白内障が進んでいますね進んでいます/g, '白内障が進んでいます');
 
  return text;
-}
-
-function renderDictList(){
- var list = $('dictList');
- if(!list) return;
- list.innerHTML = '';
-
- if(!medicalDictionary.length){
-  var empty = document.createElement('div');
-  empty.className = 'small-note';
-  empty.textContent = '登録されている辞書ワードはありません。';
-  list.appendChild(empty);
-  return;
- }
-
- medicalDictionary.forEach(function(item, index){
-  var row = document.createElement('div');
-  row.className = 'dict-item';
-
-  var span = document.createElement('span');
-  span.textContent = item.wrong + ' → ' + item.right;
-
-  var edit = document.createElement('button');
-  edit.textContent = '編集';
-  edit.onclick = function(){
-   var newWrong = prompt('認識される語（読み・誤変換）を編集', item.wrong);
-   if(newWrong === null || !newWrong.trim()) return;
-   var newRight = prompt('正しい表記を編集', item.right);
-   if(newRight === null || !newRight.trim()) return;
-   medicalDictionary[index] = { wrong: newWrong.trim(), right: newRight.trim() };
-   persistDict();
-  };
-
-  var del = document.createElement('button');
-  del.className = 'danger';
-  del.textContent = '削除';
-  del.onclick = function(){
-   medicalDictionary.splice(index, 1);
-   persistDict();
-  };
-
-  row.appendChild(span);
-  row.appendChild(edit);
-  row.appendChild(del);
-  list.appendChild(row);
- });
-}
-
-function persistDict(){
- lsSet(KEY_DICT, medicalDictionary);
- renderDictList();
 }
 
 function setStatus(s){
@@ -582,7 +480,7 @@ function closeModals(){
  }
 }
 
-/* 音声認識（ボタン押下時にクリアする仕様） */
+/* 音声認識（1回押しで開始、もう1回押しで前表示を消去して表示） */
 var SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
 var isRecording=false;
 var stopRequested=false;
@@ -601,7 +499,7 @@ if(SpeechRecognition){
  function updateMicButton(recording){
   micBtn.classList.toggle('recording',!!recording);
   micBtn.textContent=recording?
-   '⏹️ もう一度押すと確定':
+   '⏹️ もう一度押すと終了して表示':
    '🎤 音声入力開始';
  }
 
@@ -618,9 +516,11 @@ if(SpeechRecognition){
  }
 
  function commitRecognitionResult(){
-  var currentEdited = shown.innerText.replace(/\r/g,'').trim();
-  var combined = currentEdited || (finalBuffer + latestInterim).trim();
+  // 確定処理時に必ず applyContextFilter を通過させるように修正
+  var rawCombined = finalBuffer + latestInterim;
+  var combined = applyContextFilter(rawCombined.trim());
   
+  // 現在の表示内容を消去してから新しい認識内容を表示
   showText('',false);
   if(combined){
    showText(combined,true);
@@ -635,7 +535,7 @@ if(SpeechRecognition){
  recognition.onstart=function(){
   recognitionError='';
   updateMicButton(true);
-  setStatus('録音中（リアルタイム表示）');
+  setStatus('録音中（もう一度押すと確定表示）');
  };
 
  recognition.onresult=function(e){
@@ -659,15 +559,6 @@ if(SpeechRecognition){
    }
   }
   latestInterim = interim;
-
-  var liveText = applyContextFilter((finalBuffer + latestInterim).trim());
-  if(liveText){
-   activeText = liveText;
-   shown.textContent = liveText;
-   shown.classList.remove('empty');
-   shown.classList.add('interim');
-   fitText();
-  }
  };
 
  recognition.onerror=function(e){
@@ -723,9 +614,6 @@ if(SpeechRecognition){
   if(!recognition)return;
 
   if(!isRecording){
-   // 1回目の押下：ボタンを押した瞬間に画面をクリア
-   showText('', false); 
-   
    isRecording=true;
    stopRequested=false;
    finalBuffer='';
@@ -735,7 +623,6 @@ if(SpeechRecognition){
    setStatus('起動中…');
    beginRecognition();
   }else{
-   // 2回目の押下：認識終了・確定
    isRecording=false;
    stopRequested=true;
 
@@ -780,7 +667,6 @@ shown.addEventListener('blur',function(){
  activeText=applyContextFilter(shown.innerText.replace(/\r/g,'').trim());
  shown.textContent=activeText;
  shown.classList.toggle('empty',!activeText);
- shown.classList.remove('interim');
  fitText();
 
  if(activeText && activeText!==textAtFocus && settings.keepHistory){
@@ -949,37 +835,10 @@ $('clearHistoryBtn').onclick=function(){
  renderHistory();
 };
 
-/* 表示・辞書設定 */
+/* 表示設定 */
 $('settingsBtn').onclick=function(){
  applySettings();
- renderDictList();
  openModal('modal-settings');
-};
-
-$('addDictBtn').onclick=function(){
- var w=$('dictWrongInput').value.trim();
- var r=$('dictRightInput').value.trim();
- if(!w || !r)return;
-
- var existingIndex = medicalDictionary.findIndex(function(item){
-  return item.wrong === w;
- });
-
- if(existingIndex >= 0){
-  medicalDictionary[existingIndex].right = r;
- }else{
-  medicalDictionary.unshift({ wrong: w, right: r });
- }
-
- $('dictWrongInput').value='';
- $('dictRightInput').value='';
- persistDict();
-};
-
-$('resetDictBtn').onclick=function(){
- if(!confirm('眼科辞書を初期状態に戻しますか？'))return;
- medicalDictionary = defaultMedicalDictionary.slice();
- persistDict();
 };
 
 $('sizeRange').oninput=function(){
