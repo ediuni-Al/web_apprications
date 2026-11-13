@@ -353,7 +353,7 @@ var medicalDictionary = lsGet(KEY_DICT, defaultMedicalDictionary);
 })();
 
 function escapeRegExp(s){
- return String(s).replace(/[.*+?^${}()|[\]\]/g, '\$&');
+ return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function applyContextFilter(text) {
@@ -618,8 +618,7 @@ if(SpeechRecognition){
  }
 
  function commitRecognitionResult(){
-  var currentEdited = shown.innerText.replace(/
-/g,'').trim();
+  var currentEdited = shown.innerText.replace(/\r/g,'').trim();
   var combined = currentEdited || (finalBuffer + latestInterim).trim();
   
   showText('',false);
@@ -768,20 +767,17 @@ if(SpeechRecognition){
 var textAtFocus='';
 
 shown.addEventListener('focus',function(){
- textAtFocus=shown.innerText.replace(/
-/g,'').trim();
+ textAtFocus=shown.innerText.replace(/\r/g,'').trim();
 });
 
 shown.addEventListener('input',function(){
- activeText=shown.innerText.replace(/
-/g,'');
+ activeText=shown.innerText.replace(/\r/g,'');
  shown.classList.toggle('empty',!activeText.trim());
  fitText();
 });
 
 shown.addEventListener('blur',function(){
- activeText=applyContextFilter(shown.innerText.replace(/
-/g,'').trim());
+ activeText=applyContextFilter(shown.innerText.replace(/\r/g,'').trim());
  shown.textContent=activeText;
  shown.classList.toggle('empty',!activeText);
  shown.classList.remove('interim');
