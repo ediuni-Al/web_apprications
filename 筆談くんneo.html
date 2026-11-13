@@ -316,6 +316,9 @@ var history=lsGet(KEY_HIST,[]);
 
 /* 医学用語・文脈に基づく補正フィルター（デフォルト辞書＋ユーザー追加辞書） */
 var defaultDictionary = [
+  { wrong: 'かれいおうはんへんせい|カレー黄斑変性|カレー王班変性|カレー横斑変性|かれい黄斑変性|カレー黄班変性', right: '加齢黄斑変性' },
+  { wrong: 'カレー黄斑|かれい黄斑', right: '加齢黄斑' },
+  { wrong: 'おうはんへんせい|黄斑へんせい', right: '黄斑変性' },
   { wrong: 'はくないしょう', right: '白内障' },
   { wrong: 'りょくないしょう', right: '緑内障' },
   { wrong: 'がんあつ', right: '眼圧' },
@@ -340,6 +343,21 @@ if(!Array.isArray(customDictionary)){
  });
  lsSet(KEY_DICT, customDictionary);
 }
+
+/* 辞書の追加分を、保存済みの辞書へ一度だけ先頭に取り込む */
+(function(){
+ var KEY_MIG='hitsudan_neo_dict_mig_amd_v1';
+ if(lsGet(KEY_MIG,false))return;
+ var add=defaultDictionary.slice(0,3);
+ var have={};
+ customDictionary.forEach(function(d){if(d&&d.right)have[d.right]=true;});
+ var toAdd=add.filter(function(d){return !have[d.right];}).map(function(d){return {wrong:d.wrong,right:d.right};});
+ if(toAdd.length){
+  customDictionary=toAdd.concat(customDictionary);
+  lsSet(KEY_DICT,customDictionary);
+ }
+ lsSet(KEY_MIG,true);
+})();
 
 function escapeRegExp(str){
  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -630,173 +648,210 @@ var SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
 var isRecording=false;
 var stopRequested=false;
 var restartTimer=null;
+var startWatchdog=null;
+var quickEndCount=0;
+var lastStartTime=0;
+var finalBuffer='';
+var latestInterim='';
 
-if(SpeechRecognition){
- recognition=new SpeechRecognition();
- recognition.lang='ja-JP';
- recognition.interimResults=true;
- recognition.continuous=true;
- recognition.maxAlternatives=3;
+function updateMicButton(recording){
+ micBtn.classList.toggle('recording',!!recording);
+ micBtn.textContent=recording?
+  '⏹️ もう一度押すと終了して表示':
+  '🎤 音声入力開始';
+}
 
- var finalBuffer='';
- var latestInterim='';
-
- function updateMicButton(recording){
-  micBtn.classList.toggle('recording',!!recording);
-  micBtn.textContent=recording?
-   '⏹️ もう一度押すと終了して表示':
-   '🎤 音声入力開始';
+function errorMessage(code){
+ switch(code){
+  case 'not-allowed':
+  case 'service-not-allowed':
+   return 'マイクの使用が許可されていません。アドレスバー左のアイコンからマイクを「許可」にして、もう一度押してください。';
+  case 'audio-capture':
+   return 'マイクが見つかりません。マイクの接続と、OS側のマイク設定を確認してください。';
+  case 'network':
+   return '音声認識サーバーに接続できません。インターネット接続を確認してください（音声認識はオンラインが必要です）。';
+  case 'language-not-supported':
+   return '日本語の音声認識に対応していないブラウザです。';
+  case 'start-timeout':
+  case 'start-failed':
+   return '音声認識が開始されません。マイク許可・ネット接続・ブラウザ（Chrome/Edge/Safari）を確認してください。';
+  default:
+   return '音声認識エラー：'+code;
  }
+}
 
- function beginRecognition(){
-  if(!recognition || !isRecording || stopRequested)return;
-  try{
-   recognition.start();
-  }catch(err){
-   if(isRecording && !stopRequested){
-    if(restartTimer)clearTimeout(restartTimer);
-    restartTimer=setTimeout(beginRecognition,300);
-   }
-  }
- }
+function clearTimers(){
+ if(restartTimer){clearTimeout(restartTimer);restartTimer=null;}
+ if(startWatchdog){clearTimeout(startWatchdog);startWatchdog=null;}
+}
 
- function commitRecognitionResult(){
-  var rawCombined = finalBuffer + latestInterim;
-  var combined = applyContextFilter(rawCombined.trim());
-  
+function commitRecognitionResult(){
+ var rawCombined=finalBuffer+latestInterim;
+ var combined=applyContextFilter(rawCombined.trim());
+
+ if(combined){
+  showText(combined,true);
+  setStatus('認識完了');
+ }else if(recognitionError){
+  setStatus(errorMessage(recognitionError));
+ }else{
   showText('',false);
-  if(combined){
-   showText(combined,true);
-   setStatus('認識完了');
-  }else if(recognitionError){
-   setStatus('エラー：'+recognitionError);
-  }else{
-   setStatus('待機中');
-  }
+  setStatus('待機中');
  }
+ finalBuffer='';
+ latestInterim='';
+}
 
- recognition.onstart=function(){
-  recognitionError='';
+function finishRecording(){
+ clearTimers();
+ isRecording=false;
+ stopRequested=false;
+ updateMicButton(false);
+}
+
+/* 認識エンジンは開始のたびに作り直す（エラー後の再利用で固まるのを防ぐ） */
+function createRecognition(){
+ var r=new SpeechRecognition();
+ r.lang='ja-JP';
+ r.interimResults=true;
+ r.continuous=true;
+ r.maxAlternatives=1;
+
+ r.onstart=function(){
+  if(startWatchdog){clearTimeout(startWatchdog);startWatchdog=null;}
   updateMicButton(true);
   setStatus('録音中（もう一度押すと確定表示）');
  };
 
- recognition.onresult=function(e){
+ r.onresult=function(e){
+  if(r!==recognition)return;
   var interim='';
-  
   for(var i=e.resultIndex;i<e.results.length;i++){
-   var res = e.results[i];
-   var transcript = res[0].transcript.trim();
-   
+   var res=e.results[i];
+   var transcript=res[0].transcript;
    if(res.isFinal){
-    if(transcript){
-     var cleanChunk = applyContextFilter(transcript);
-     if (!finalBuffer.endsWith(cleanChunk) && finalBuffer.indexOf(cleanChunk) === -1) {
-      finalBuffer += cleanChunk;
-     } else if (!finalBuffer) {
-      finalBuffer = cleanChunk;
-     }
-    }
+    finalBuffer+=transcript.trim();
    }else{
-    interim += res[0].transcript;
+    interim+=transcript;
    }
   }
-  latestInterim = interim;
+  latestInterim=interim;
 
-  var previewText = finalBuffer + interim;
-  var combinedPreview = applyContextFilter(previewText.trim());
+  var combinedPreview=applyContextFilter((finalBuffer+interim).trim());
   if(combinedPreview){
-   shown.textContent = combinedPreview;
+   shown.textContent=combinedPreview;
    shown.classList.remove('empty');
    shown.classList.add('interim');
-   activeText = combinedPreview;
+   activeText=combinedPreview;
    fitText();
   }
  };
 
- recognition.onerror=function(e){
-  recognitionError=e.error||'認識エラー';
-  var fatalErrors=[
-   'not-allowed',
-   'service-not-allowed',
-   'audio-capture',
-   'network',
-   'language-not-supported'
-  ];
-
-  if(fatalErrors.indexOf(recognitionError)>=0){
-   isRecording=false;
-   stopRequested=true;
-   if(restartTimer){
-    clearTimeout(restartTimer);
-    restartTimer=null;
-   }
-   updateMicButton(false);
-   setStatus('音声エラー：'+recognitionError);
+ r.onerror=function(e){
+  if(r!==recognition)return;
+  var code=(e&&e.error)||'unknown';
+  if(code==='aborted')return;
+  if(code==='no-speech'){return;}
+  recognitionError=code;
+  var fatal=['not-allowed','service-not-allowed','audio-capture','network','language-not-supported'];
+  if(fatal.indexOf(code)>=0){
+   finishRecording();
+   setStatus(errorMessage(code));
+   try{alert(errorMessage(code));}catch(err){}
   }
  };
 
- recognition.onend=function(){
-  if(restartTimer){
-   clearTimeout(restartTimer);
-   restartTimer=null;
-  }
+ r.onend=function(){
+  if(r!==recognition)return;
+  if(startWatchdog){clearTimeout(startWatchdog);startWatchdog=null;}
 
   if(isRecording && !stopRequested){
+   /* 認識が自動終了した場合は継続する（ただし即終了を繰り返す場合は中止） */
+   if(Date.now()-lastStartTime<1000){quickEndCount++;}else{quickEndCount=0;}
+   if(quickEndCount>=5){
+    recognitionError=recognitionError||'start-failed';
+    finishRecording();
+    commitRecognitionResult();
+    setStatus('音声認識を開始できませんでした。マイク許可とネット接続を確認してください。');
+    return;
+   }
    if(latestInterim.trim()){
-    var cleanInterim=applyContextFilter(latestInterim.trim());
-    if(!finalBuffer.endsWith(cleanInterim)){
-     finalBuffer+=cleanInterim;
-    }
+    finalBuffer+=latestInterim.trim();
     latestInterim='';
    }
    setStatus('認識を再開しています…');
-   restartTimer=setTimeout(beginRecognition,250);
+   restartTimer=setTimeout(beginRecognition,300);
    return;
   }
 
-  updateMicButton(false);
+  finishRecording();
   commitRecognitionResult();
-
-  isRecording=false;
-  stopRequested=false;
  };
 
- function toggleRec(e){
-  if(e)e.preventDefault();
-  if(!recognition)return;
+ return r;
+}
 
-  if(!isRecording){
-   isRecording=true;
-   stopRequested=false;
-   finalBuffer='';
-   latestInterim='';
-   recognitionError='';
-   updateMicButton(true);
-   setStatus('起動中…');
-   beginRecognition();
-  }else{
-   isRecording=false;
-   stopRequested=true;
-
-   if(restartTimer){
-    clearTimeout(restartTimer);
-    restartTimer=null;
+function beginRecognition(){
+ if(!isRecording||stopRequested)return;
+ try{
+  recognition=createRecognition();
+  lastStartTime=Date.now();
+  recognition.start();
+  if(startWatchdog)clearTimeout(startWatchdog);
+  startWatchdog=setTimeout(function(){
+   /* 一定時間たっても開始通知が来ない場合 */
+   if(isRecording&&!stopRequested){
+    recognitionError='start-timeout';
+    try{recognition.abort();}catch(err){}
+    finishRecording();
+    setStatus('音声認識が開始されません。マイク許可・ネット接続・ブラウザ（Chrome/Edge/Safari）を確認してください。');
    }
-
-   try{
-    recognition.stop();
-   }catch(err){
-    updateMicButton(false);
-    commitRecognitionResult();
-    stopRequested=false;
-   }
+  },8000);
+ }catch(err){
+  if(isRecording&&!stopRequested){
+   restartTimer=setTimeout(beginRecognition,400);
   }
  }
+}
 
+function toggleRec(e){
+ if(e)e.preventDefault();
+ if(!SpeechRecognition)return;
+
+ if(!isRecording){
+  isRecording=true;
+  stopRequested=false;
+  finalBuffer='';
+  latestInterim='';
+  recognitionError='';
+  quickEndCount=0;
+  updateMicButton(true);
+  setStatus('起動中…（マイクの許可を求められたら「許可」）');
+  /* ユーザー操作の中で同期的に開始する */
+  beginRecognition();
+ }else{
+  isRecording=false;
+  stopRequested=true;
+  clearTimers();
+  try{
+   recognition.stop();
+  }catch(err){
+   finishRecording();
+   commitRecognitionResult();
+  }
+  /* stop後にonendが来ない環境へのフォールバック */
+  setTimeout(function(){
+   if(stopRequested){
+    finishRecording();
+    commitRecognitionResult();
+   }
+  },2500);
+ }
+}
+
+if(SpeechRecognition){
  micBtn.addEventListener('click',toggleRec);
  micBtn.addEventListener('contextmenu',function(e){e.preventDefault();});
-
 }else{
  micBtn.disabled=true;
  micBtn.textContent='音声認識非対応ブラウザ';
