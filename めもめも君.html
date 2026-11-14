@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>めもめも君</title>
+    <title>Local File Memo App</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen flex flex-col overflow-hidden">
 
-    <!-- 隠しファイルインプット（スマホ用フォールバック用） -->
+    <!-- 隠しファイルインプット（スマホ用インポート用） -->
     <input type="file" id="fallback-file-input" accept=".json" onchange="handleFallbackFileSelected(event)" class="hidden">
 
     <!-- ヘッダー -->
@@ -17,15 +17,26 @@
             <button onclick="toggleMobileSidebar()" class="sm:hidden p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition" title="メニュー">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
             </button>
-            <span class="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">めもめも君</span>
-            <span id="file-status" class="hidden xs:inline-block text-xs px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full font-medium">未保存</span>
+            <span class="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Local Memo</span>
+            <span id="file-status" class="hidden xs:inline-block text-xs px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full font-medium">準備完了</span>
         </div>
         <div class="flex items-center space-x-2">
-            <button onclick="openFile()" class="px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-slate-100 hover:bg-slate-200 rounded-lg transition">📁 開く</button>
-            <button onclick="saveFile()" class="px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition shadow-sm">💾 保存</button>
+            <button onclick="openFile()" class="px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-slate-100 hover:bg-slate-200 rounded-lg transition">📁 読み込み</button>
+            <button onclick="saveFile()" class="px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition shadow-sm">💾 保存/出力</button>
             <button onclick="toggleSettingsModal()" class="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition" title="設定 & ヘルプ">⚙️</button>
         </div>
     </header>
+
+    <!-- PC用再接続バナー -->
+    <div id="reconnect-banner" class="bg-indigo-600 text-white px-4 py-2.5 text-xs sm:text-sm flex items-center justify-between shadow-md z-10 hidden">
+        <div class="flex items-center space-x-2">
+            <span>🔄 前回使用していたファイル（<strong id="reconnect-filename">memos.json</strong>）の接続を復元しますか？</span>
+        </div>
+        <div class="flex items-center space-x-2 shrink-0 ml-2">
+            <button onclick="reconnectPreviousFile()" class="px-3 py-1 bg-white text-indigo-700 font-bold rounded-lg hover:bg-indigo-50 transition shadow-sm text-xs">接続する</button>
+            <button onclick="dismissReconnectBanner()" class="text-indigo-200 hover:text-white px-1.5 text-base">&times;</button>
+        </div>
+    </div>
 
     <!-- メインコンテナ -->
     <div class="flex-1 flex relative overflow-hidden">
@@ -124,12 +135,11 @@
                 <div>
                     <h4 class="font-semibold text-slate-800 mb-2">📁 データ保存方式</h4>
                     <div id="file-path-display" class="p-3 bg-slate-50 rounded-lg text-xs font-mono text-slate-600 border border-slate-200 break-all mb-3">
-                        ファイル未選択（メモリ上で動作中）
+                        ローカルストレージ（自動キャッシュ）で動作中
                     </div>
                     <div class="flex flex-wrap gap-2">
-                        <button onclick="openFile()" class="px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">📂 JSONファイルを開く / 選択</button>
-                        <button onclick="saveFile()" class="px-3 py-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition">💾 JSONとして保存</button>
-                        <button onclick="clearSavedFileHandle()" id="unlink-btn" class="px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg transition hidden">紐付け解除</button>
+                        <button onclick="openFile()" class="px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">📂 JSONファイルを読み込む</button>
+                        <button onclick="saveFile()" class="px-3 py-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition">💾 JSONとしてダウンロード保存</button>
                     </div>
                     <p id="env-mode-notice" class="text-[11px] text-slate-500 bg-slate-100 p-2 rounded mt-2"></p>
                 </div>
@@ -145,433 +155,4 @@
 
                 <div class="border-t border-slate-100 pt-4">
                     <h4 class="font-semibold text-slate-800 mb-2">💡 使い方 & 注意事項</h4>
-                    <ul class="list-disc list-inside space-y-1.5 text-xs text-slate-600">
-                        <li><strong>PC (Brave/Chrome等):</strong> File System Access APIにより、自動上書き保存とリロード時の記憶に対応しています。</li>
-                        <li><strong>モバイル (スマホ版Brave/Safari等):</strong> API非対応のため、「開く」でJSONを選択し、保存時は「保存」ボタンで端末にJSONファイルをダウンロードする方式（手動同期）で動作します。</li>
-                    </ul>
-                </div>
-
-            </div>
-            <div class="px-6 py-3 bg-slate-50 border-t border-slate-100 flex justify-end">
-                <button onclick="toggleSettingsModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-medium transition">閉じる</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- JavaScript ロジック -->
-    <script>
-        const PRESET_STORAGE_KEY = 'local_memo_category_presets';
-        let categoryPresets = JSON.parse(localStorage.getItem(PRESET_STORAGE_KEY)) || ['覚書き', '旅行', 'レシピ'];
-
-        let memos = [
-            { id: "1", category: "覚書き", importance: "中", date: new Date().toISOString().split('T')[0], content: "ようこそ Local Memo へ！\n\nPCではダイレクトファイル保存、スマホではダウンロード保存として自動的に切り替わります。" }
-        ];
-        let currentMemoId = null;
-        let fileHandle = null;
-        let savedHandleCandidate = null;
-        let fallbackFileName = null;
-        let autoSaveTimer = null;
-
-        const isApiSupported = 'showOpenFilePicker' in window;
-
-        // IndexedDB (PC用)
-        const DB_NAME = 'LocalMemoDB';
-        const STORE_NAME = 'fileHandles';
-
-        function openDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(DB_NAME, 1);
-                request.onupgradeneeded = () => request.result.createObjectStore(STORE_NAME);
-                request.onsuccess = () => resolve(request.result);
-                request.onerror = () => reject(request.error);
-            });
-        }
-
-        async function saveHandleToDB(handle) {
-            const db = await openDB();
-            const tx = db.transaction(STORE_NAME, 'readwrite');
-            tx.objectStore(STORE_NAME).put(handle, 'lastUsedFile');
-            return new Promise(resolve => tx.oncomplete = resolve);
-        }
-
-        async function getHandleFromDB() {
-            const db = await openDB();
-            const tx = db.transaction(STORE_NAME, 'readonly');
-            const req = tx.objectStore(STORE_NAME).get('lastUsedFile');
-            return new Promise(resolve => req.onsuccess = () => resolve(req.result));
-        }
-
-        async function clearHandleFromDB() {
-            const db = await openDB();
-            const tx = db.transaction(STORE_NAME, 'readwrite');
-            tx.objectStore(STORE_NAME).delete('lastUsedFile');
-            return new Promise(resolve => tx.oncomplete = resolve);
-        }
-
-        window.onload = async () => {
-            renderPresetList();
-            renderMemoList();
-            updateEnvNotice();
-            if (memos.length > 0) selectMemo(memos[0].id);
-
-            if (isApiSupported) {
-                try {
-                    const storedHandle = await getHandleFromDB();
-                    if (storedHandle) {
-                        savedHandleCandidate = storedHandle;
-                        const perm = await storedHandle.queryPermission({ mode: 'readwrite' });
-                        if (perm === 'granted') {
-                            await loadFromHandle(storedHandle);
-                        } else {
-                            document.getElementById('file-path-display').innerText = `記憶済み: ${storedHandle.name}（「開く」で接続）`;
-                        }
-                    }
-                } catch (e) {
-                    console.error(e);
-                }
-            }
-        };
-
-        function updateEnvNotice() {
-            const notice = document.getElementById('env-mode-notice');
-            if (isApiSupported) {
-                notice.innerText = "✨ このブラウザは File System Access API に対応しています（自動保存対応）。";
-            } else {
-                notice.innerText = "📱 モバイルまたは非対応ブラウザ環境です。「開く」でJSONファイルを選択し、保存時は端末へのダウンロード保存（手動同期）になります。";
-            }
-        }
-
-        async function loadFromHandle(handle) {
-            const file = await handle.getFile();
-            const text = await file.text();
-            const parsed = JSON.parse(text);
-            if (!Array.isArray(parsed)) throw new Error('Format error');
-
-            fileHandle = handle;
-            memos = parsed;
-            document.getElementById('file-path-display').innerText = `紐付け済み: ${file.name}`;
-            document.getElementById('unlink-btn').classList.remove('hidden');
-            
-            if (memos.length > 0) selectMemo(memos[0].id);
-            renderMemoList();
-            setFileStatus(true);
-        }
-
-        async function clearSavedFileHandle() {
-            await clearHandleFromDB();
-            fileHandle = null;
-            savedHandleCandidate = null;
-            fallbackFileName = null;
-            document.getElementById('file-path-display').innerText = 'ファイル未選択（メモリ上で動作中）';
-            document.getElementById('unlink-btn').classList.add('hidden');
-            setFileStatus(false);
-            alert('ファイルの紐付けを解除しました。');
-        }
-
-        function toggleMobileSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const overlay = document.getElementById('sidebar-overlay');
-            sidebar.classList.toggle('-translate-x-full');
-            overlay.classList.toggle('hidden');
-        }
-
-        function savePresets() {
-            localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(categoryPresets));
-            renderPresetList();
-            renderCategoryChips();
-            updateCategoryOptions();
-        }
-
-        function addPreset() {
-            const input = document.getElementById('new-preset-input');
-            const val = input.value.trim();
-            if (val && !categoryPresets.includes(val)) {
-                categoryPresets.push(val);
-                input.value = '';
-                savePresets();
-            }
-        }
-
-        function removePreset(tag) {
-            categoryPresets = categoryPresets.filter(p => p !== tag);
-            savePresets();
-        }
-
-        function renderPresetList() {
-            const container = document.getElementById('preset-list');
-            container.innerHTML = categoryPresets.map(tag => `
-                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                    ${escapeHtml(tag)}
-                    <button onclick="removePreset('${escapeHtml(tag)}')" class="text-blue-400 hover:text-blue-700 font-bold ml-1">&times;</button>
-                </span>
-            `).join('');
-        }
-
-        function getAllKnownCategories() {
-            const usedCategories = memos.map(m => m.category).filter(Boolean);
-            return [...new Set([...categoryPresets, ...usedCategories])];
-        }
-
-        function renderCategoryChips() {
-            const allCats = getAllKnownCategories();
-            const chipsContainer = document.getElementById('category-chips');
-            const datalist = document.getElementById('category-suggestions');
-
-            datalist.innerHTML = allCats.map(c => `<option value="${escapeHtml(c)}">`).join('');
-
-            chipsContainer.innerHTML = `<span class="text-[11px] text-slate-400 mr-1">候補:</span>` + 
-                allCats.map(c => {
-                    const isPreset = categoryPresets.includes(c);
-                    return `<button type="button" onclick="applyCategoryChip('${escapeHtml(c)}')" class="text-xs px-2 py-0.5 rounded-md border transition ${isPreset ? 'bg-blue-50/70 border-blue-200 text-blue-700 hover:bg-blue-100' : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'}">${escapeHtml(c)}</button>`;
-                }).join('');
-        }
-
-        function applyCategoryChip(cat) {
-            document.getElementById('memo-category').value = cat;
-            updateCurrentMemo();
-        }
-
-        function renderMemoList() {
-            const listEl = document.getElementById('memo-list');
-            const searchKeyword = document.getElementById('search-input').value.toLowerCase();
-            const filterCat = document.getElementById('filter-category').value;
-            const filterImp = document.getElementById('filter-importance').value;
-
-            updateCategoryOptions();
-            renderCategoryChips();
-
-            const filtered = memos.filter(m => {
-                const matchKeyword = m.content.toLowerCase().includes(searchKeyword) || m.category.toLowerCase().includes(searchKeyword);
-                const matchCat = !filterCat || m.category === filterCat;
-                const matchImp = !filterImp || m.importance === filterImp;
-                return matchKeyword && matchCat && matchImp;
-            });
-
-            if (filtered.length === 0) {
-                listEl.innerHTML = `<div class="p-6 text-center text-xs text-slate-400">メモがありません</div>`;
-                return;
-            }
-
-            listEl.innerHTML = filtered.map(m => `
-                <div onclick="selectMemo('${m.id}')" class="p-4 cursor-pointer transition hover:bg-slate-50 ${m.id === currentMemoId ? 'bg-blue-50/60 border-l-4 border-blue-600' : ''}">
-                    <div class="flex items-center justify-between mb-1">
-                        <span class="text-xs font-semibold px-2 py-0.5 bg-slate-100 text-slate-600 rounded">${escapeHtml(m.category || '未分類')}</span>
-                        <span class="text-xs text-slate-400">${m.date}</span>
-                    </div>
-                    <p class="text-sm text-slate-700 font-medium truncate">${escapeHtml(m.content.split('\n')[0] || '（空のメモ）')}</p>
-                    <div class="mt-1 flex items-center space-x-1">
-                        <span class="text-[10px] px-1.5 py-0.2 rounded ${getImportanceBadge(m.importance)}">重要度: ${m.importance}</span>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function getImportanceBadge(imp) {
-            if (imp === '高') return 'bg-rose-100 text-rose-700';
-            if (imp === '中') return 'bg-amber-100 text-amber-700';
-            return 'bg-emerald-100 text-emerald-700';
-        }
-
-        function updateCategoryOptions() {
-            const select = document.getElementById('filter-category');
-            const currentVal = select.value;
-            const categories = getAllKnownCategories();
-            
-            select.innerHTML = '<option value="">すべての分類</option>' + 
-                categories.map(c => `<option value="${escapeHtml(c)}" ${c === currentVal ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('');
-        }
-
-        function selectMemo(id) {
-            currentMemoId = id;
-            const memo = memos.find(m => m.id === id);
-            if (!memo) return;
-            
-            document.getElementById('no-memo-selected').classList.add('hidden');
-            document.getElementById('editor-container').classList.remove('hidden');
-
-            document.getElementById('memo-category').value = memo.category;
-            document.getElementById('memo-importance').value = memo.importance;
-            document.getElementById('memo-date').value = memo.date;
-            document.getElementById('memo-content').value = memo.content;
-            document.getElementById('char-count').innerText = `${memo.content.length}文字`;
-
-            renderMemoList();
-
-            if (window.innerWidth < 640) {
-                const sidebar = document.getElementById('sidebar');
-                if (!sidebar.classList.contains('-translate-x-full')) {
-                    toggleMobileSidebar();
-                }
-            }
-        }
-
-        function createNewMemo() {
-            const defaultCat = categoryPresets[0] || '覚書き';
-            const newMemo = {
-                id: Date.now().toString(),
-                category: defaultCat,
-                importance: '中',
-                date: new Date().toISOString().split('T')[0],
-                content: ''
-            };
-            memos.unshift(newMemo);
-            selectMemo(newMemo.id);
-            triggerAutoSave();
-        }
-
-        function updateCurrentMemo() {
-            if (!currentMemoId) return;
-            const memo = memos.find(m => m.id === currentMemoId);
-            if (!memo) return;
-
-            memo.category = document.getElementById('memo-category').value;
-            memo.importance = document.getElementById('memo-importance').value;
-            memo.content = document.getElementById('memo-content').value;
-            document.getElementById('char-count').innerText = `${memo.content.length}文字`;
-
-            renderMemoList();
-            triggerAutoSave();
-        }
-
-        function deleteCurrentMemo() {
-            if (!currentMemoId) return;
-            if (!confirm('このメモを削除してもよろしいですか？')) return;
-
-            memos = memos.filter(m => m.id !== currentMemoId);
-            currentMemoId = null;
-            
-            document.getElementById('editor-container').classList.add('hidden');
-            document.getElementById('no-memo-selected').classList.remove('hidden');
-
-            renderMemoList();
-            triggerAutoSave();
-        }
-
-        function triggerAutoSave() {
-            setFileStatus(false);
-            clearTimeout(autoSaveTimer);
-            autoSaveTimer = setTimeout(() => {
-                if (isApiSupported && fileHandle) {
-                    saveFileSilent();
-                }
-            }, 1500);
-        }
-
-        function setFileStatus(isSaved) {
-            const statusEl = document.getElementById('file-status');
-            const name = fileHandle ? fileHandle.name : (fallbackFileName || "");
-            if (isSaved) {
-                statusEl.className = "hidden xs:inline-block text-xs px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full font-medium";
-                statusEl.innerText = name ? `保存済み (${name})` : "保存済み";
-            } else {
-                statusEl.className = "hidden xs:inline-block text-xs px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full font-medium";
-                statusEl.innerText = name ? `未保存 (${name})` : "未保存";
-            }
-        }
-
-        // ファイルを開く（保存されたファイルがある場合はクリックで即座に再接続）
-        async function openFile() {
-            if (isApiSupported) {
-                try {
-                    if (savedHandleCandidate && !fileHandle) {
-                        const perm = await savedHandleCandidate.requestPermission({ mode: 'readwrite' });
-                        if (perm === 'granted') {
-                            await loadFromHandle(savedHandleCandidate);
-                            return;
-                        }
-                    }
-                    const [handle] = await window.showOpenFilePicker({
-                        types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }]
-                    });
-                    await saveHandleToDB(handle);
-                    await loadFromHandle(handle);
-                } catch (err) {
-                    if (err.name !== 'AbortError') console.error(err);
-                }
-            } else {
-                document.getElementById('fallback-file-input').click();
-            }
-        }
-
-        async function handleFallbackFileSelected(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            try {
-                const text = await file.text();
-                const parsed = JSON.parse(text);
-                if (!Array.isArray(parsed)) throw new Error('Format error');
-
-                memos = parsed;
-                fallbackFileName = file.name;
-                document.getElementById('file-path-display').innerText = `選択中ファイル: ${file.name}`;
-                document.getElementById('unlink-btn').classList.remove('hidden');
-
-                if (memos.length > 0) selectMemo(memos[0].id);
-                renderMemoList();
-                setFileStatus(true);
-                alert(`「${file.name}」を読み込みました。`);
-            } catch (err) {
-                alert('JSONファイルの読み込みに失敗しました: ' + err.message);
-            }
-            event.target.value = '';
-        }
-
-        async function saveFile() {
-            if (isApiSupported && fileHandle) {
-                await saveFileSilent();
-                alert('ファイルを保存しました。');
-            } else if (isApiSupported && !fileHandle) {
-                try {
-                    fileHandle = await window.showSaveFilePicker({
-                        types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }],
-                        suggestedName: 'memos.json'
-                    });
-                    await saveHandleToDB(fileHandle);
-                    await saveFileSilent();
-                    document.getElementById('file-path-display').innerText = `紐付け済み: ${fileHandle.name}`;
-                    document.getElementById('unlink-btn').classList.remove('hidden');
-                    alert(`「${fileHandle.name}」として保存しました。`);
-                } catch (err) {
-                    if (err.name !== 'AbortError') console.error(err);
-                }
-            } else {
-                const jsonStr = JSON.stringify(memos, null, 2);
-                const blob = new Blob([jsonStr], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = fallbackFileName || 'memos.json';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                setFileStatus(true);
-                alert(`「${a.download}」をダウンロード保存しました。`);
-            }
-        }
-
-        async function saveFileSilent() {
-            if (!fileHandle) return;
-            try {
-                const writable = await fileHandle.createWritable();
-                await writable.write(JSON.stringify(memos, null, 2));
-                await writable.close();
-                setFileStatus(true);
-            } catch (err) {
-                console.error("保存エラー:", err);
-            }
-        }
-
-        function toggleSettingsModal() {
-            const modal = document.getElementById('settings-modal');
-            modal.classList.toggle('hidden');
-        }
-
-        function escapeHtml(str) {
-            return String(str).replace(/[&<>'"]/g, 
-                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
-            );
-        }
-    </script>
-</body>
-</html>
+                    <ul class="list-disc list
