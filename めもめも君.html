@@ -27,17 +27,6 @@
         </div>
     </header>
 
-    <!-- PC用再接続バナー -->
-    <div id="reconnect-banner" class="bg-indigo-600 text-white px-4 py-2.5 text-xs sm:text-sm flex items-center justify-between shadow-md z-10 hidden">
-        <div class="flex items-center space-x-2">
-            <span>🔄 前回使用していたファイル（<strong id="reconnect-filename">memos.json</strong>）の接続を復元しますか？</span>
-        </div>
-        <div class="flex items-center space-x-2 shrink-0 ml-2">
-            <button onclick="reconnectPreviousFile()" class="px-3 py-1 bg-white text-indigo-700 font-bold rounded-lg hover:bg-indigo-50 transition shadow-sm text-xs">接続する</button>
-            <button onclick="dismissReconnectBanner()" class="text-indigo-200 hover:text-white px-1.5 text-base">&times;</button>
-        </div>
-    </div>
-
     <!-- メインコンテナ -->
     <div class="flex-1 flex relative overflow-hidden">
         
@@ -180,7 +169,7 @@
         let currentMemoId = null;
         let fileHandle = null;
         let savedHandleCandidate = null;
-        let fallbackFileName = null; // スマホ等でのファイル名保持
+        let fallbackFileName = null;
         let autoSaveTimer = null;
 
         const isApiSupported = 'showOpenFilePicker' in window;
@@ -234,9 +223,7 @@
                         if (perm === 'granted') {
                             await loadFromHandle(storedHandle);
                         } else {
-                            document.getElementById('reconnect-filename').innerText = storedHandle.name;
-                            document.getElementById('reconnect-banner').classList.remove('hidden');
-                            document.getElementById('file-path-display').innerText = `記憶済み（未接続）: ${storedHandle.name}`;
+                            document.getElementById('file-path-display').innerText = `記憶済み: ${storedHandle.name}（「開く」で接続）`;
                         }
                     }
                 } catch (e) {
@@ -252,23 +239,6 @@
             } else {
                 notice.innerText = "📱 モバイルまたは非対応ブラウザ環境です。「開く」でJSONファイルを選択し、保存時は端末へのダウンロード保存（手動同期）になります。";
             }
-        }
-
-        async function reconnectPreviousFile() {
-            if (!savedHandleCandidate) return;
-            try {
-                const perm = await savedHandleCandidate.requestPermission({ mode: 'readwrite' });
-                if (perm === 'granted') {
-                    await loadFromHandle(savedHandleCandidate);
-                    document.getElementById('reconnect-banner').classList.add('hidden');
-                }
-            } catch (err) {
-                console.error(err);
-            }
-        }
-
-        function dismissReconnectBanner() {
-            document.getElementById('reconnect-banner').classList.add('hidden');
         }
 
         async function loadFromHandle(handle) {
@@ -292,7 +262,6 @@
             fileHandle = null;
             savedHandleCandidate = null;
             fallbackFileName = null;
-            document.getElementById('reconnect-banner').classList.add('hidden');
             document.getElementById('file-path-display').innerText = 'ファイル未選択（メモリ上で動作中）';
             document.getElementById('unlink-btn').classList.add('hidden');
             setFileStatus(false);
@@ -500,26 +469,30 @@
             }
         }
 
-        // ファイルを開く（PCはAPI、スマホはインプットタグ）
+        // ファイルを開く（保存されたファイルがある場合はクリックで即座に再接続）
         async function openFile() {
             if (isApiSupported) {
                 try {
+                    if (savedHandleCandidate && !fileHandle) {
+                        const perm = await savedHandleCandidate.requestPermission({ mode: 'readwrite' });
+                        if (perm === 'granted') {
+                            await loadFromHandle(savedHandleCandidate);
+                            return;
+                        }
+                    }
                     const [handle] = await window.showOpenFilePicker({
                         types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }]
                     });
                     await saveHandleToDB(handle);
                     await loadFromHandle(handle);
-                    document.getElementById('reconnect-banner').classList.add('hidden');
                 } catch (err) {
                     if (err.name !== 'AbortError') console.error(err);
                 }
             } else {
-                // スマホ用フォールバック（<input type="file">発動）
                 document.getElementById('fallback-file-input').click();
             }
         }
 
-        // スマホ用ファイル選択時の処理
         async function handleFallbackFileSelected(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -540,16 +513,14 @@
             } catch (err) {
                 alert('JSONファイルの読み込みに失敗しました: ' + err.message);
             }
-            event.target.value = ''; // リセット
+            event.target.value = '';
         }
 
-        // 保存ボタン
         async function saveFile() {
             if (isApiSupported && fileHandle) {
                 await saveFileSilent();
                 alert('ファイルを保存しました。');
             } else if (isApiSupported && !fileHandle) {
-                // PCでまだファイル未選択の場合は新規保存ピッカー
                 try {
                     fileHandle = await window.showSaveFilePicker({
                         types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }],
@@ -564,7 +535,6 @@
                     if (err.name !== 'AbortError') console.error(err);
                 }
             } else {
-                // スマホ等フォールバック：ブラウザのダウンロード機能でJSON出力
                 const jsonStr = JSON.stringify(memos, null, 2);
                 const blob = new Blob([jsonStr], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
