@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local File Memo App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex flex-col overflow-hidden">
+
+    <!-- ヘッダー -->
+    <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between shadow-sm shrink-0">
+        <div class="flex items-center space-x-3">
+            <span class="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Local Memo</span>
+            <span id="file-status" class="text-xs px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full font-medium">未保存（ローカルメモリ）</span>
+        </div>
+        <div class="flex items-center space-x-2">
+            <button onclick="openFile()" class="px-3 py-1.5 text-sm font-medium bg-slate-100 hover:bg-slate-200 rounded-lg transition">📁 開く</button>
+            <button onclick="saveFile()" class="px-3 py-1.5 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition shadow-sm">💾 保存</button>
+            <button onclick="toggleSettingsModal()" class="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition" title="設定 & ヘルプ">⚙️</button>
+        </div>
+    </header>
+
+    <!-- メインコンテナ -->
+    <div class="flex-1 flex overflow-hidden">
+        
+        <!-- 左側：サイドバー（一覧・フィルター） -->
+        <aside class="w-80 bg-white border-r border-slate-200 flex flex-col shrink-0">
+            <div class="p-4 border-b border-slate-100 space-y-3">
+                <button onclick="createNewMemo()" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition shadow-sm text-sm">+ 新規メモ</button>
+                <input type="text" id="search-input" oninput="renderMemoList()" placeholder="検索キーワード..." class="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <div class="flex gap-2">
+                    <select id="filter-category" onchange="renderMemoList()" class="flex-1 px-2 py-1 text-xs border border-slate-200 rounded-lg bg-white">
+                        <option value="">すべての分類</option>
+                    </select>
+                    <select id="filter-importance" onchange="renderMemoList()" class="flex-1 px-2 py-1 text-xs border border-slate-200 rounded-lg bg-white">
+                        <option value="">すべての重要度</option>
+                        <option value="高">高</option>
+                        <option value="中">中</option>
+                        <option value="低">低</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- メモ一覧 -->
+            <div id="memo-list" class="flex-1 overflow-y-auto divide-y divide-slate-100"></div>
+        </aside>
+
+        <!-- 右側：エディタ -->
+        <main class="flex-1 bg-slate-50 flex flex-col p-6 overflow-y-auto">
+            <div id="editor-container" class="max-w-3xl w-full mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col h-full hidden">
+                
+                <!-- エディタ上部（メタデータ） -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pb-4 border-b border-slate-100">
+                    <div class="md:col-span-1">
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">分類タグ</label>
+                        <input type="text" id="memo-category" list="category-suggestions" oninput="updateCurrentMemo()" placeholder="選択または入力..." class="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <datalist id="category-suggestions"></datalist>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">重要度</label>
+                        <select id="memo-importance" onchange="updateCurrentMemo()" class="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="低">低</option>
+                            <option value="中" selected>中</option>
+                            <option value="高">高</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">記載日</label>
+                        <input type="text" id="memo-date" disabled class="w-full px-3 py-1.5 text-sm border border-slate-100 bg-slate-50 text-slate-500 rounded-lg">
+                    </div>
+                </div>
+
+                <!-- プリセット＆履歴クイック選択チップ -->
+                <div class="pt-3 pb-1 flex flex-wrap items-center gap-1.5" id="category-chips">
+                    <!-- 動的に挿入 -->
+                </div>
+
+                <!-- 内容エディタ -->
+                <div class="flex-1 flex flex-col pt-3">
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">内容</label>
+                    <textarea id="memo-content" oninput="updateCurrentMemo()" placeholder="ここにメモを入力..." class="flex-1 w-full px-4 py-3 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-sans leading-relaxed"></textarea>
+                </div>
+
+                <!-- フッター操作 -->
+                <div class="pt-4 flex justify-between items-center border-t border-slate-100 mt-4">
+                    <span id="char-count" class="text-xs text-slate-400">0文字</span>
+                    <button onclick="deleteCurrentMemo()" class="px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg transition">このメモを削除</button>
+                </div>
+            </div>
+
+            <!-- 未選択時のプレースホルダー -->
+            <div id="no-memo-selected" class="flex-1 flex flex-col items-center justify-center text-slate-400">
+                <p class="text-lg font-medium">メモを選択または作成してください</p>
+                <p class="text-xs mt-1">左上の「新規メモ」ボタンから始められます</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- 設定 & ヘルプ モーダル -->
+    <div id="settings-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                <h3 class="font-bold text-slate-800">⚙️ 設定 ＆ ヘルプ</h3>
+                <button onclick="toggleSettingsModal()" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-6 text-sm text-slate-600">
+                
+                <!-- 1. データ保存先設定 -->
+                <div>
+                    <h4 class="font-semibold text-slate-800 mb-2">📁 データ保存先（JSONファイル連携）</h4>
+                    <div id="file-path-display" class="p-3 bg-slate-50 rounded-lg text-xs font-mono text-slate-600 border border-slate-200 break-all mb-3">
+                        ファイル未選択（ブラウザのメモリ上で動作中）
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="createNewJsonFile()" class="px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">＋ 新規JSONファイルを作成して紐付け</button>
+                        <button onclick="openFile()" class="px-3 py-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition">📂 既存JSONファイルを選択</button>
+                    </div>
+                    <p id="fs-api-warning" class="text-[11px] text-amber-700 bg-amber-50 p-2 rounded mt-2 hidden"></p>
+                </div>
+
+                <!-- 2. 分類プリセット設定 -->
+                <div class="border-t border-slate-100 pt-4">
+                    <h4 class="font-semibold text-slate-800 mb-2">🏷️ 分類タグのプリセット設定</h4>
+                    <p class="text-xs text-slate-500 mb-2">よく使う分類を登録しておくと、エディタ上でワンクリック選択できます。</p>
+                    <div class="flex gap-2 mb-3">
+                        <input type="text" id="new-preset-input" placeholder="新しい分類名（例: 読書, 仕事）" class="flex-1 px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button onclick="addPreset()" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-900 text-white rounded-lg transition">追加</button>
+                    </div>
+                    <div id="preset-list" class="flex flex-wrap gap-1.5">
+                        <!-- 動的に挿入 -->
+                    </div>
+                </div>
+
+                <!-- 3. ヘルプ・使い方 -->
+                <div class="border-t border-slate-100 pt-4">
+                    <h4 class="font-semibold text-slate-800 mb-2">💡 使い方 & 注意事項</h4>
+                    <ul class="list-disc list-inside space-y-1.5 text-xs text-slate-600">
+                        <li><strong>動作環境（重要）:</strong> ブラウザのセキュリティ仕様上、File System Access APIは <code>https://</code>（GitHub Pagesなど）または <code>http://localhost</code> 経由で開いた際に有効になります（<code>file://</code> 直開きでは制限がかかる場合があります）。</li>
+                        <li><strong>自動保存:</strong> JSONファイルを一度紐付けると、編集から1.5秒後に自動で上書き保存されます。</li>
+                        <li><strong>履歴とプリセット:</strong> プリセット（「覚書き」「旅行」「レシピ」など）に加え、過去に入力した分類も自動で履歴候補に表示されます。</li>
+                    </ul>
+                </div>
+
+            </div>
+            <div class="px-6 py-3 bg-slate-50 border-t border-slate-100 flex justify-end">
+                <button onclick="toggleSettingsModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-medium transition">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript ロジック -->
+    <script>
+        const PRESET_STORAGE_KEY = 'local_memo_category_presets';
+        let categoryPresets = JSON.parse(localStorage.getItem(PRESET_STORAGE_KEY)) || ['覚書き', '旅行', 'レシピ'];
+
+        let memos = [
+            { id: "1", category: "覚書き", importance: "中", date: new Date().toISOString().split('T')[0], content: "ようこそ Local Memo へ！\n\n右上の歯車アイコン（⚙️）から保存用JSONファイルの作成・選択や、分類プリセットの編集が行えます。" }
+        ];
+        let currentMemoId = null;
+        let fileHandle = null;
+        let autoSaveTimer = null;
+
+        window.onload = () => {
+            checkFileSystemApiSupport();
+            renderPresetList();
+            renderMemoList();
+            if (memos.length > 0) {
+                selectMemo(memos[0].id);
+            }
+        };
+
+        // API対応状況のチェック
+        function checkFileSystemApiSupport() {
+            const warningEl = document.getElementById('fs-api-warning');
+            if (!('showOpenFilePicker' in window)) {
+                warningEl.innerText = "⚠️ 現在のブラウザ環境（または file:// 直開き）では File System Access API が無効になっています。GitHub Pages（https://）またはローカルサーバー経由で開いてください。";
+                warningEl.classList.remove('hidden');
+            } else if (window.location.protocol === 'file:') {
+                warningEl.innerText = "ℹ️ 現在ローカルファイル（file://）として開かれています。ブラウザの制限でファイル選択がブロックされる場合は、GitHub Pages等に配置してご利用ください。";
+                warningEl.classList.remove('hidden');
+            }
+        }
+
+        // プリセット管理
+        function savePresets() {
+            localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(categoryPresets));
+            renderPresetList();
+            renderCategoryChips();
+            updateCategoryOptions();
+        }
+
+        function addPreset() {
+            const input = document.getElementById('new-preset-input');
+            const val = input.value.trim();
+            if (val && !categoryPresets.includes(val)) {
+                categoryPresets.push(val);
+                input.value = '';
+                savePresets();
+            }
+        }
+
+        function removePreset(tag) {
+            categoryPresets = categoryPresets.filter(p => p !== tag);
+            savePresets();
+        }
+
+        function renderPresetList() {
+            const container = document.getElementById('preset-list');
+            container.innerHTML = categoryPresets.map(tag => `
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                    ${escapeHtml(tag)}
+                    <button onclick="removePreset('${escapeHtml(tag)}')" class="text-blue-400 hover:text-blue-700 font-bold ml-1">&times;</button>
+                </span>
+            `).join('');
+        }
+
+        // プリセット＋使用履歴の統合リスト取得
+        function getAllKnownCategories() {
+            const usedCategories = memos.map(m => m.category).filter(Boolean);
+            return [...new Set([...categoryPresets, ...usedCategories])];
+        }
+
+        // エディタ内のクイック選択チップ＆datalist更新
+        function renderCategoryChips() {
+            const allCats = getAllKnownCategories();
+            const chipsContainer = document.getElementById('category-chips');
+            const datalist = document.getElementById('category-suggestions');
+
+            datalist.innerHTML = allCats.map(c => `<option value="${escapeHtml(c)}">`).join('');
+
+            chipsContainer.innerHTML = `<span class="text-[11px] text-slate-400 mr-1">候補:</span>` + 
+                allCats.map(c => {
+                    const isPreset = categoryPresets.includes(c);
+                    return `<button type="button" onclick="applyCategoryChip('${escapeHtml(c)}')" class="text-xs px-2 py-0.5 rounded-md border transition ${isPreset ? 'bg-blue-50/70 border-blue-200 text-blue-700 hover:bg-blue-100' : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'}">${escapeHtml(c)}</button>`;
+                }).join('');
+        }
+
+        function applyCategoryChip(cat) {
+            document.getElementById('memo-category').value = cat;
+            updateCurrentMemo();
+        }
+
+        function renderMemoList() {
+            const listEl = document.getElementById('memo-list');
+            const searchKeyword = document.getElementById('search-input').value.toLowerCase();
+            const filterCat = document.getElementById('filter-category').value;
+            const filterImp = document.getElementById('filter-importance').value;
+
+            updateCategoryOptions();
+            renderCategoryChips();
+
+            const filtered = memos.filter(m => {
+                const matchKeyword = m.content.toLowerCase().includes(searchKeyword) || m.category.toLowerCase().includes(searchKeyword);
+                const matchCat = !filterCat || m.category === filterCat;
+                const matchImp = !filterImp || m.importance === filterImp;
+                return matchKeyword && matchCat && matchImp;
+            });
+
+            if (filtered.length === 0) {
+                listEl.innerHTML = `<div class="p-6 text-center text-xs text-slate-400">メモがありません</div>`;
+                return;
+            }
+
+            listEl.innerHTML = filtered.map(m => `
+                <div onclick="selectMemo('${m.id}')" class="p-4 cursor-pointer transition hover:bg-slate-50 ${m.id === currentMemoId ? 'bg-blue-50/60 border-l-4 border-blue-600' : ''}">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-semibold px-2 py-0.5 bg-slate-100 text-slate-600 rounded">${escapeHtml(m.category || '未分類')}</span>
+                        <span class="text-xs text-slate-400">${m.date}</span>
+                    </div>
+                    <p class="text-sm text-slate-700 font-medium truncate">${escapeHtml(m.content.split('\n')[0] || '（空のメモ）')}</p>
+                    <div class="mt-1 flex items-center space-x-1">
+                        <span class="text-[10px] px-1.5 py-0.2 rounded ${getImportanceBadge(m.importance)}">重要度: ${m.importance}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getImportanceBadge(imp) {
+            if (imp === '高') return 'bg-rose-100 text-rose-700';
+            if (imp === '中') return 'bg-amber-100 text-amber-700';
+            return 'bg-emerald-100 text-emerald-700';
+        }
+
+        function updateCategoryOptions() {
+            const select = document.getElementById('filter-category');
+            const currentVal = select.value;
+            const categories = getAllKnownCategories();
+            
+            select.innerHTML = '<option value="">すべての分類</option>' + 
+                categories.map(c => `<option value="${escapeHtml(c)}" ${c === currentVal ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('');
+        }
+
+        function selectMemo(id) {
+            currentMemoId = id;
+            const memo = memos.find(m => m.id === id);
+            if (!memo) return;
+            
+            document.getElementById('no-memo-selected').classList.add('hidden');
+            document.getElementById('editor-container').classList.remove('hidden');
+
+            document.getElementById('memo-category').value = memo.category;
+            document.getElementById('memo-importance').value = memo.importance;
+            document.getElementById('memo-date').value = memo.date;
+            document.getElementById('memo-content').value = memo.content;
+            document.getElementById('char-count').innerText = `${memo.content.length}文字`;
+
+            renderMemoList();
+        }
+
+        function createNewMemo() {
+            const defaultCat = categoryPresets[0] || '覚書き';
+            const newMemo = {
+                id: Date.now().toString(),
+                category: defaultCat,
+                importance: '中',
+                date: new Date().toISOString().split('T')[0],
+                content: ''
+            };
+            memos.unshift(newMemo);
+            selectMemo(newMemo.id);
+            triggerAutoSave();
+        }
+
+        function updateCurrentMemo() {
+            if (!currentMemoId) return;
+            const memo = memos.find(m => m.id === currentMemoId);
+            if (!memo) return;
+
+            memo.category = document.getElementById('memo-category').value;
+            memo.importance = document.getElementById('memo-importance').value;
+            memo.content = document.getElementById('memo-content').value;
+            document.getElementById('char-count').innerText = `${memo.content.length}文字`;
+
+            renderMemoList();
+            triggerAutoSave();
+        }
+
+        function deleteCurrentMemo() {
+            if (!currentMemoId) return;
+            if (!confirm('このメモを削除してもよろしいですか？')) return;
+
+            memos = memos.filter(m => m.id !== currentMemoId);
+            currentMemoId = null;
+            
+            document.getElementById('editor-container').classList.add('hidden');
+            document.getElementById('no-memo-selected').classList.remove('hidden');
+
+            renderMemoList();
+            triggerAutoSave();
+        }
+
+        function triggerAutoSave() {
+            setFileStatus(false);
+            clearTimeout(autoSaveTimer);
+            autoSaveTimer = setTimeout(() => {
+                if (fileHandle) {
+                    saveFileSilent();
+                }
+            }, 1500);
+        }
+
+        function setFileStatus(isSaved) {
+            const statusEl = document.getElementById('file-status');
+            if (isSaved) {
+                statusEl.className = "text-xs px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full font-medium";
+                statusEl.innerText = fileHandle ? `保存済み (${fileHandle.name})` : "保存済み";
+            } else {
+                statusEl.className = "text-xs px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full font-medium";
+                statusEl.innerText = fileHandle ? `未保存 (${fileHandle.name})` : "未保存（ローカルメモリ）";
+            }
+        }
+
+        // 新規JSONファイル作成（設定画面用）
+        async function createNewJsonFile() {
+            if (!('showSaveFilePicker' in window)) {
+                alert('お使いのブラウザ環境では File System Access API がサポートされていません。https:// または localhost で開いてください。');
+                return;
+            }
+            try {
+                fileHandle = await window.showSaveFilePicker({
+                    types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }],
+                    suggestedName: 'memos.json'
+                });
+                document.getElementById('file-path-display').innerText = `紐付け済み: ${fileHandle.name}`;
+                await saveFileSilent();
+                alert(`「${fileHandle.name}」を作成し、保存先として紐付けました。`);
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    console.error(err);
+                    alert('ファイルの作成に失敗しました: ' + err.message);
+                }
+            }
+        }
+
+        // 既存JSONファイルを開く
+        async function openFile() {
+            if (!('showOpenFilePicker' in window)) {
+                alert('お使いのブラウザ環境では File System Access API がサポートされていません。https:// または localhost で開いてください。');
+                return;
+            }
+            try {
+                [fileHandle] = await window.showOpenFilePicker({
+                    types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }]
+                });
+                const file = await fileHandle.getFile();
+                const text = await file.text();
+                const parsed = JSON.parse(text);
+                if (!Array.isArray(parsed)) throw new Error('メモ配列のJSON形式ではありません');
+                
+                memos = parsed;
+                document.getElementById('file-path-display').innerText = `紐付け済み: ${file.name}`;
+                
+                if (memos.length > 0) {
+                    selectMemo(memos[0].id);
+                } else {
+                    currentMemoId = null;
+                    document.getElementById('editor-container').classList.add('hidden');
+                    document.getElementById('no-memo-selected').classList.remove('hidden');
+                }
+                renderMemoList();
+                setFileStatus(true);
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    console.error(err);
+                    alert('ファイルの読み込みに失敗しました: ' + err.message);
+                }
+            }
+        }
+
+        // 保存ボタン（未紐付けなら新規作成ダイアログを開く）
+        async function saveFile() {
+            if (!fileHandle) {
+                await createNewJsonFile();
+                return;
+            }
+            await saveFileSilent();
+        }
+
+        async function saveFileSilent() {
+            if (!fileHandle) return;
+            try {
+                const writable = await fileHandle.createWritable();
+                await writable.write(JSON.stringify(memos, null, 2));
+                await writable.close();
+                setFileStatus(true);
+            } catch (err) {
+                console.error("保存エラー:", err);
+                alert("ファイルへの書き込み権限が失われたか、エラーが発生しました。再度ファイルを選択してください。");
+            }
+        }
+
+        function toggleSettingsModal() {
+            const modal = document.getElementById('settings-modal');
+            modal.classList.toggle('hidden');
+        }
+
+        function escapeHtml(str) {
+            return String(str).replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+    </script>
+</body>
+</html>
