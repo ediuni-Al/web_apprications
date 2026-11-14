@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>めもめも君</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📝</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 h-screen flex flex-col overflow-hidden select-none">
+
+    <!-- 携帯（スマホ）用 隠しファイルインプット -->
+    <input type="file" id="fallback-file-input" accept=".json" onchange="handleFallbackFileSelected(event)" class="hidden">
+
+    <!-- ヘッダー -->
+    <header class="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex items-center justify-between shadow-sm shrink-0 z-20">
+        <div class="flex items-center space-x-3">
+            <!-- モバイル用メニューボタン -->
+            <button onclick="toggleMobileSidebar()" class="sm:hidden p-1.5 text-slate-600 hover:bg-slate-100 rounded-xl transition" title="メニュー">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            </button>
+            <span class="text-lg sm:text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-1.5">
+                📋 めもめも君
+            </span>
+            <span id="file-status" class="hidden xs:inline-block text-xs px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full font-semibold">
+                未接続
+            </span>
+        </div>
+        <div class="flex items-center space-x-2">
+            <button onclick="saveFile()" class="px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition shadow-sm flex items-center gap-1">
+                💾 保存
+            </button>
+            <button onclick="toggleSettingsModal()" class="p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition border border-transparent hover:border-slate-200" title="設定 & ヘルプ">
+                ⚙️
+            </button>
+        </div>
+    </header>
+
+    <!-- PC用再接続バナー -->
+    <div id="reconnect-banner" class="bg-indigo-600 text-white px-4 sm:px-6 py-2.5 text-xs flex items-center justify-between shadow-md z-10 hidden">
+        <div class="flex items-center space-x-2 truncate">
+            <span>🔄 前回使用していたファイル（<strong id="reconnect-filename" class="underline">memos.json</strong>）の接続を復元しますか？</span>
+        </div>
+        <div class="flex items-center space-x-2 shrink-0 ml-2">
+            <button onclick="reconnectPreviousFile()" class="px-3 py-1 bg-white text-indigo-700 font-bold rounded-lg hover:bg-indigo-50 transition shadow-sm text-xs">
+                再接続
+            </button>
+            <button onclick="dismissReconnectBanner()" class="text-indigo-200 hover:text-white px-1.5 text-base font-bold">&times;</button>
+        </div>
+    </div>
+
+    <!-- メインコンテナ -->
+    <div class="flex-1 flex relative overflow-hidden">
+        
+        <!-- 左側：サイドバー（一覧・検索・フィルター） -->
+        <aside id="sidebar" class="absolute sm:relative inset-y-0 left-0 w-80 bg-white border-r border-slate-200 flex flex-col shrink-0 z-10 transform -translate-x-full sm:translate-x-0 transition-transform duration-200 shadow-xl sm:shadow-none">
+            <div class="sm:hidden px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <span class="font-bold text-sm text-slate-700">メモ一覧</span>
+                <button onclick="toggleMobileSidebar()" class="text-slate-400 hover:text-slate-600 font-bold text-lg px-2">&times;</button>
+            </div>
+            
+            <div class="p-4 border-b border-slate-100 space-y-3 bg-slate-50/50">
+                <button onclick="createNewMemo()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold rounded-xl transition shadow-sm text-sm flex items-center justify-center gap-1">
+                    <span>＋</span> 新規メモ作成
+                </button>
+                
+                <div class="relative">
+                    <input type="text" id="search-input" oninput="renderMemoList()" placeholder="タイトル・キーワード検索..." class="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <span class="absolute left-2.5 top-1.5 text-slate-400 text-xs">🔍</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <select id="filter-category" onchange="renderMemoList()" class="px-2 py-1.5 text-xs border border-slate-200 rounded-xl bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">すべての分類</option>
+                    </select>
+                    <select id="filter-importance" onchange="renderMemoList()" class="px-2 py-1.5 text-xs border border-slate-200 rounded-xl bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">すべての重要度</option>
+                        <option value="高">高</option>
+                        <option value="中">中</option>
+                        <option value="低">低</option>
+                    </select>
+                </div>
+
+                <div class="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
+                    <span id="memo-count-label">0 件</span>
+                    <select id="sort-order" onchange="renderMemoList()" class="bg-transparent font-semibold text-slate-600 focus:outline-none cursor-pointer">
+                        <option value="newest">新しい順</option>
+                        <option value="oldest">古い順</option>
+                        <option value="importance">重要度順</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- メモ一覧リスト -->
+            <div id="memo-list" class="flex-1 overflow-y-auto divide-y divide-slate-100"></div>
+        </aside>
+
+        <!-- 背景オーバーレイ（モバイル用） -->
+        <div id="sidebar-overlay" onclick="toggleMobileSidebar()" class="fixed inset-0 bg-slate-900/30 z-0 sm:hidden hidden"></div>
+
+        <!-- 右側：エディタエリア -->
+        <main class="flex-1 bg-slate-100/70 flex flex-col p-2 sm:p-6 overflow-y-auto">
+            <div id="editor-container" class="max-w-4xl w-full mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 p-3.5 sm:p-6 flex flex-col h-full hidden">
+                
+                <!-- スマホ用：一覧に戻るボタン ＆ 詳細編集トグル -->
+                <div class="sm:hidden pb-2.5 mb-2.5 border-b border-slate-100 flex items-center justify-between shrink-0">
+                    <button onclick="toggleMobileSidebar()" class="text-sm font-bold text-blue-600 flex items-center space-x-1 py-1">
+                        <span>← 一覧へ</span>
+                    </button>
+                    <div class="flex items-center space-x-2">
+                        <button type="button" id="mobile-meta-toggle-btn" onclick="toggleMobileMetaFields()" class="text-xs font-bold text-slate-600 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg transition">
+                            ✏️ タイトル・タグ編集
+                        </button>
+                        <button onclick="deleteCurrentMemo()" class="text-xs font-bold text-rose-600 px-2 py-1 bg-rose-50 rounded-lg">削除</button>
+                    </div>
+                </div>
+
+                <!-- スマホ閲覧時用：コンパクトなタイトル・メタ情報ヘッダー -->
+                <div id="mobile-view-header" class="sm:hidden pb-3 mb-2 border-b border-slate-100 shrink-0">
+                    <div class="flex flex-wrap items-center gap-1.5 mb-1.5">
+                        <span id="mobile-view-category" class="text-xs font-bold px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md border border-blue-200/70">未分類</span>
+                        <span id="mobile-view-importance" class="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">重要度: 中</span>
+                        <span id="mobile-view-date" class="text-[11px] text-slate-400 font-mono ml-auto"></span>
+                    </div>
+                    <h2 id="mobile-view-title" class="text-lg font-bold text-slate-900 leading-snug break-words select-text"></h2>
+                </div>
+
+                <!-- タイトル・メタデータ編集ブロック（PCでは常時表示、スマホではデフォルト非表示） -->
+                <div id="meta-edit-section" class="hidden sm:block shrink-0">
+                    <!-- タイトル入力欄 -->
+                    <div class="pb-3 sm:pb-4 border-b border-slate-100">
+                        <label class="block text-xs font-bold text-slate-500 mb-1">タイトル</label>
+                        <input type="text" id="memo-title" oninput="updateCurrentMemo()" placeholder="メモのタイトルを入力..." class="w-full px-3.5 py-2 text-sm sm:text-base font-bold text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 select-text">
+                    </div>
+
+                    <!-- 上部メタデータ設定 -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 py-3 sm:py-4 border-b border-slate-100">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1">分類タグ</label>
+                            <input type="text" id="memo-category" list="category-suggestions" oninput="updateCurrentMemo()" placeholder="選択または自由入力..." class="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 select-text">
+                            <datalist id="category-suggestions"></datalist>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1">重要度</label>
+                            <select id="memo-importance" onchange="updateCurrentMemo()" class="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+                                <option value="低">🟢 低</option>
+                                <option value="中" selected>🟡 中</option>
+                                <option value="高">🔴 高</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1">更新日時</label>
+                            <input type="text" id="memo-date" disabled class="w-full px-3 py-1.5 text-sm border border-slate-100 bg-slate-50 text-slate-500 rounded-xl font-mono">
+                        </div>
+                    </div>
+
+                    <!-- プリセット＆履歴クイック選択チップ -->
+                    <div class="pt-3 pb-2 flex flex-wrap items-center gap-1.5" id="category-chips"></div>
+                </div>
+
+                <!-- 編集 / プレビュー 切り替えタブ -->
+                <div class="flex items-center justify-between pt-2 pb-1.5">
+                    <label class="text-xs font-bold text-slate-500">内容</label>
+                    <div class="flex bg-slate-100 p-0.5 rounded-lg text-xs font-bold">
+                        <button type="button" id="tab-edit-btn" onclick="setEditorMode('edit')" class="px-3 py-1 rounded-md bg-white text-blue-600 shadow-xs transition">✏️ 編集</button>
+                        <button type="button" id="tab-preview-btn" onclick="setEditorMode('preview')" class="px-3 py-1 rounded-md text-slate-500 hover:text-slate-700 transition">👁️ プレビュー</button>
+                    </div>
+                </div>
+
+                <!-- テキストエリア（編集モード） -->
+                <div id="edit-mode-box" class="flex-1 flex flex-col min-h-[250px]">
+                    <textarea id="memo-content" oninput="updateCurrentMemo()" placeholder="ここにメモの本文を入力してください..." class="flex-1 w-full p-3.5 sm:p-4 text-base sm:text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-sans leading-relaxed select-text"></textarea>
+                </div>
+
+                <!-- プレビュー表示（閲覧モード） -->
+                <div id="preview-mode-box" class="flex-1 hidden overflow-y-auto p-3.5 sm:p-4 text-[17px] sm:text-sm border border-slate-200 bg-slate-50/50 rounded-xl leading-[1.8] sm:leading-relaxed whitespace-pre-wrap break-words select-text font-sans text-slate-900"></div>
+
+                <!-- フッター操作 -->
+                <div class="pt-4 hidden sm:flex justify-between items-center border-t border-slate-100 mt-4">
+                    <div class="flex items-center space-x-4 text-xs text-slate-400">
+                        <span id="char-count">0 文字</span>
+                        <span id="line-count">0 行</span>
+                    </div>
+                    <button onclick="deleteCurrentMemo()" class="px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition flex items-center gap-1">
+                        🗑️ このメモを削除
+                    </button>
+                </div>
+            </div>
+
+            <!-- 未選択時のプレースホルダー -->
+            <div id="no-memo-selected" class="flex-1 flex flex-col items-center justify-center text-slate-400 p-6 text-center">
+                <div class="text-4xl mb-3">📝</div>
+                <p class="text-base font-bold text-slate-500">メモを選択するか、新規作成してください</p>
+                <p class="text-xs mt-1">右上の「⚙️ 設定」からJSONファイルの読み込みができます</p>
+                <button onclick="toggleMobileSidebar()" class="sm:hidden mt-4 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow">
+                    メモ一覧を開く
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <!-- 設定 & ヘルプ モーダル -->
+    <div id="settings-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-xl overflow-hidden flex flex-col max-h-[88vh]">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <h3 class="font-bold text-slate-800 text-base">⚙️ 設定 ＆ ファイル管理</h3>
+                <button onclick="toggleSettingsModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-6 text-sm text-slate-600">
+                
+                <!-- 1. データ保存・ファイル設定 -->
+                <div>
+                    <h4 class="font-bold text-slate-800 mb-2">📁 JSONデータ管理</h4>
+                    <p class="text-xs text-slate-500 mb-2.5" id="env-mode-desc">PC環境では自動保存、携帯環境では手動での読込・保存に対応しています。</p>
+                    <div id="file-path-display" class="p-3 bg-slate-50 rounded-xl text-xs font-mono text-slate-700 border border-slate-200 break-all mb-3">
+                        ファイル未接続
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="openFile()" class="px-3.5 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition shadow-sm">
+                            📂 JSONを開く / 選択
+                        </button>
+                        <button onclick="createNewJsonFile()" id="pc-create-btn" class="px-3.5 py-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition border border-slate-200">
+                            ＋ 新規JSON作成
+                        </button>
+                        <button onclick="clearSavedFileHandle()" id="unlink-btn" class="px-3.5 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition hidden">
+                            紐付け解除
+                        </button>
+                    </div>
+                    <p id="fs-api-warning" class="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 p-2.5 rounded-xl mt-2.5 hidden"></p>
+                </div>
+
+                <!-- 2. 分類プリセット設定 -->
+                <div class="border-t border-slate-100 pt-5">
+                    <h4 class="font-bold text-slate-800 mb-2">🏷️ 分類タグのプリセット設定</h4>
+                    <div class="flex gap-2 mb-3">
+                        <input type="text" id="new-preset-input" onkeydown="if(event.key==='Enter') addPreset()" placeholder="新しい分類名（例: 仕事, 読書）" class="flex-1 px-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 select-text">
+                        <button onclick="addPreset()" class="px-4 py-1.5 text-xs font-bold bg-slate-800 hover:bg-slate-900 text-white rounded-xl transition">追加</button>
+                    </div>
+                    <div id="preset-list" class="flex flex-wrap gap-1.5"></div>
+                </div>
+
+                <!-- 3. ヘルプ -->
+                <div class="border-t border-slate-100 pt-5">
+                    <h4 class="font-bold text-slate-800 mb-2">💡 使い方</h4>
+                    <ul class="list-disc list-inside space-y-1.5 text-xs text-slate-600 leading-relaxed">
+                        <li><strong>PC (Brave/Chrome等):</strong> 一度「新規作成」または「JSONを開く」を行うと、以降は入力のたびに自動でファイルに上書き保存されます。</li>
+                        <li><strong>携帯・非対応ブラウザ:</strong> 「JSONを開く」から端末内のJSONを選択して読み込みます。編集後は「保存」ボタンを押すと、最新のJSONファイルが端末にダウンロード保存されます。</li>
+                    </ul>
+                </div>
+
+            </div>
+            <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex justify-end">
+                <button onclick="toggleSettingsModal()" class="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript ロジック -->
+    <script>
+        const PRESET_STORAGE_KEY = 'memo_kun_presets';
+        const MEMOS_STORAGE_KEY = 'memo_kun_local_cache';
+        let categoryPresets = JSON.parse(localStorage.getItem(PRESET_STORAGE_KEY)) || ['覚書き', '旅行', 'レシピ'];
+
+        let memos = JSON.parse(localStorage.getItem(MEMOS_STORAGE_KEY)) || [
+            { 
+                id: "1", 
+                title: "めもめも君へようこそ！",
+                category: "覚書き", 
+                importance: "中", 
+                date: getNowTimestamp(), 
+                content: "めもめも君へようこそ！\n\n右上の設定ボタン（⚙️）からJSONファイルを開いて読み書きできます。" 
+            }
+        ];
+
+        let currentMemoId = null;
+        let fileHandle = null;
+        let savedHandleCandidate = null;
+        let fallbackFileName = "memos.json";
+        let autoSaveTimer = null;
+        let editorMode = 'edit';
+
+        const isApiSupported = 'showOpenFilePicker' in window;
+
+        // IndexedDB（PC用ファイルハンドル記憶）
+        const DB_NAME = 'MemoKunFileDB';
+        const STORE_NAME = 'fileHandles';
+
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, 1);
+                request.onupgradeneeded = () => request.result.createObjectStore(STORE_NAME);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function saveHandleToDB(handle) {
+            const db = await openDB();
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            tx.objectStore(STORE_NAME).put(handle, 'lastUsedFile');
+            return new Promise(resolve => tx.oncomplete = resolve);
+        }
+
+        async function getHandleFromDB() {
+            const db = await openDB();
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const req = tx.objectStore(STORE_NAME).get('lastUsedFile');
+            return new Promise(resolve => req.onsuccess = () => resolve(req.result));
+        }
+
+        async function clearHandleFromDB() {
+            const db = await openDB();
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            tx.objectStore(STORE_NAME).delete('lastUsedFile');
+            return new Promise(resolve => tx.oncomplete = resolve);
+        }
+
+        function getNowTimestamp() {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const hh = String(now.getHours()).padStart(2, '0');
+            const mm = String(now.getMinutes()).padStart(2, '0');
+            const ss = String(now.getSeconds()).padStart(2, '0');
+            return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
+        }
+
+        window.onload = async () => {
+            renderPresetList();
+            memos.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+            renderMemoList();
+            updateEnvModeUI();
+            if (memos.length > 0) selectMemo(memos[0].id);
+
+            if (isApiSupported) {
+                try {
+                    const storedHandle = await getHandleFromDB();
+                    if (storedHandle) {
+                        savedHandleCandidate = storedHandle;
+                        const perm = await storedHandle.queryPermission({ mode: 'readwrite' });
+                        if (perm === 'granted') {
+                            await loadFromHandle(storedHandle);
+                        } else {
+                            document.getElementById('reconnect-filename').innerText = storedHandle.name;
+                            document.getElementById('reconnect-banner').classList.remove('hidden');
+                            document.getElementById('file-path-display').innerText = `記憶済み（未接続）: ${storedHandle.name}`;
+                        }
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+        };
+
+        function updateEnvModeUI() {
+            if (!isApiSupported) {
+                document.getElementById('pc-create-btn').classList.add('hidden');
+                document.getElementById('env-mode-desc').innerText = "モバイル・非対応ブラウザ環境です。「JSONを開く」でファイルを選択し、保存時はダウンロード保存になります。";
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+                e.preventDefault();
+                saveFile();
+            } else if (e.altKey && e.key.toLowerCase() === 'n') {
+                e.preventDefault();
+                createNewMemo();
+            }
+        });
+
+        async function reconnectPreviousFile() {
+            if (!savedHandleCandidate) return;
+            try {
+                const perm = await savedHandleCandidate.requestPermission({ mode: 'readwrite' });
+                if (perm === 'granted') {
+                    await loadFromHandle(savedHandleCandidate);
+                    document.getElementById('reconnect-banner').classList.add('hidden');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('再接続の許可が得られませんでした。設定から再度ファイルを開いてください。');
+            }
+        }
+
+        function dismissReconnectBanner() {
+            document.getElementById('reconnect-banner').classList.add('hidden');
+        }
+
+        async function loadFromHandle(handle) {
+            const file = await handle.getFile();
+            const text = await file.text();
+            const parsed = JSON.parse(text);
+            if (!Array.isArray(parsed)) throw new Error('Format error');
+
+            fileHandle = handle;
+            memos = parsed;
+            memos.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+            saveToLocalStorage();
+            document.getElementById('file-path-display').innerText = `接続中ファイル: ${file.name}`;
+            document.getElementById('unlink-btn').classList.remove('hidden');
+            
+            if (memos.length > 0) selectMemo(memos[0].id);
+            renderMemoList();
+            setFileStatus(true, file.name);
+        }
+
+        async function clearSavedFileHandle() {
+            await clearHandleFromDB();
+            fileHandle = null;
+            savedHandleCandidate = null;
+            document.getElementById('reconnect-banner').classList.add('hidden');
+            document.getElementById('file-path-display').innerText = 'ファイル未接続';
+            document.getElementById('unlink-btn').classList.add('hidden');
+            setFileStatus(false);
+            alert('ファイルの紐付けを解除しました。');
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem(MEMOS_STORAGE_KEY, JSON.stringify(memos));
+        }
+
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            sidebar.classList.toggle('-translate-x-full');
+            overlay.classList.toggle('hidden');
+        }
+
+        function savePresets() {
+            localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(categoryPresets));
+            renderPresetList();
+            renderCategoryChips();
+            updateCategoryOptions();
+        }
+
+        function addPreset() {
+            const input = document.getElementById('new-preset-input');
+            const val = input.value.trim();
+            if (val && !categoryPresets.includes(val)) {
+                categoryPresets.push(val);
+                input.value = '';
+                savePresets();
+            }
+        }
+
+        function removePreset(tag) {
+            categoryPresets = categoryPresets.filter(p => p !== tag);
+            savePresets();
+        }
+
+        function renderPresetList() {
+            const container = document.getElementById('preset-list');
+            container.innerHTML = categoryPresets.map(tag => `
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                    ${escapeHtml(tag)}
+                    <button onclick="removePreset('${escapeHtml(tag)}')" class="text-blue-400 hover:text-blue-800 font-bold ml-0.5">&times;</button>
+                </span>
+            `).join('');
+        }
+
+        function getAllKnownCategories() {
+            const usedCategories = memos.map(m => m.category).filter(Boolean);
+            return [...new Set([...categoryPresets, ...usedCategories])];
+        }
+
+        function renderCategoryChips() {
+            const allCats = getAllKnownCategories();
+            const chipsContainer = document.getElementById('category-chips');
+            const datalist = document.getElementById('category-suggestions');
+
+            datalist.innerHTML = allCats.map(c => `<option value="${escapeHtml(c)}">`).join('');
+
+            chipsContainer.innerHTML = `<span class="text-[11px] font-bold text-slate-400 mr-1">タグ候補:</span>` + 
+                allCats.map(c => {
+                    const isPreset = categoryPresets.includes(c);
+                    return `<button type="button" onclick="applyCategoryChip('${escapeHtml(c)}')" class="text-xs px-2.5 py-0.5 rounded-lg border font-medium transition ${isPreset ? 'bg-blue-50/80 border-blue-200 text-blue-700 hover:bg-blue-100' : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'}">${escapeHtml(c)}</button>`;
+                }).join('');
+        }
+
+        function applyCategoryChip(cat) {
+            document.getElementById('memo-category').value = cat;
+            updateCurrentMemo();
+        }
+
+        // メモ一覧描画（タイトル名を表示 ＆ 一覧から削除できるボタンを配置）
+        function renderMemoList() {
+            const listEl = document.getElementById('memo-list');
+            const searchKeyword = document.getElementById('search-input').value.toLowerCase();
+            const filterCat = document.getElementById('filter-category').value;
+            const filterImp = document.getElementById('filter-importance').value;
+            const sortOrder = document.getElementById('sort-order').value;
+
+            updateCategoryOptions();
+            renderCategoryChips();
+
+            let filtered = memos.filter(m => {
+                const matchKeyword = (m.title || '').toLowerCase().includes(searchKeyword) || (m.content || '').toLowerCase().includes(searchKeyword) || (m.category || '').toLowerCase().includes(searchKeyword);
+                const matchCat = !filterCat || m.category === filterCat;
+                const matchImp = !filterImp || m.importance === filterImp;
+                return matchKeyword && matchCat && matchImp;
+            });
+
+            const impWeight = { '高': 3, '中': 2, '低': 1 };
+            filtered.sort((a, b) => {
+                if (sortOrder === 'oldest') {
+                    return String(a.date).localeCompare(String(b.date));
+                } else if (sortOrder === 'importance') {
+                    const diff = (impWeight[b.importance] || 0) - (impWeight[a.importance] || 0);
+                    return diff !== 0 ? diff : String(b.date).localeCompare(String(a.date));
+                } else {
+                    return String(b.date).localeCompare(String(a.date));
+                }
+            });
+
+            document.getElementById('memo-count-label').innerText = `${filtered.length} 件`;
+
+            if (filtered.length === 0) {
+                listEl.innerHTML = `<div class="p-8 text-center text-xs text-slate-400">メモがありません</div>`;
+                return;
+            }
+
+            listEl.innerHTML = filtered.map(m => {
+                const memoTitle = (m.title || '').trim() || '（無題のメモ）';
+                return `
+                <div class="p-3.5 flex items-center justify-between cursor-pointer transition hover:bg-slate-50 ${m.id === currentMemoId ? 'bg-blue-50/70 border-l-4 border-blue-600' : ''}">
+                    <div class="min-w-0 flex-1 mr-2" onclick="selectMemo('${m.id}')">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-[10px] font-bold px-1.5 py-0.2 bg-slate-100 text-slate-700 rounded border border-slate-200/70">${escapeHtml(m.category || '未分類')}</span>
+                            <span class="text-[10px] text-slate-400 font-mono">${escapeHtml(m.date)}</span>
+                        </div>
+                        <p class="text-xs sm:text-sm text-slate-800 font-bold truncate">${escapeHtml(memoTitle)}</p>
+                        <div class="mt-1 flex items-center">
+                            <span class="text-[9px] font-bold px-1.5 py-0.1 rounded-full ${getImportanceBadge(m.importance)}">重要度: ${escapeHtml(m.importance)}</span>
+                        </div>
+                    </div>
+                    <button onclick="deleteMemoById(event, '${m.id}')" class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition shrink-0" title="削除">
+                        🗑️
+                    </button>
+                </div>
+            `}).join('');
+        }
+
+        function getImportanceBadge(imp) {
+            if (imp === '高') return 'bg-rose-100 text-rose-700';
+            if (imp === '中') return 'bg-amber-100 text-amber-800';
+            return 'bg-emerald-100 text-emerald-700';
+        }
+
+        function updateCategoryOptions() {
+            const select = document.getElementById('filter-category');
+            const currentVal = select.value;
+            const categories = getAllKnownCategories();
+            
+            select.innerHTML = '<option value="">すべての分類</option>' + 
+                categories.map(c => `<option value="${escapeHtml(c)}" ${c === currentVal ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('');
+        }
+
+        function syncMobileViewHeader(memo) {
+            const titleEl = document.getElementById('mobile-view-title');
+            const catEl = document.getElementById('mobile-view-category');
+            const impEl = document.getElementById('mobile-view-importance');
+            const dateEl = document.getElementById('mobile-view-date');
+            if (!titleEl) return;
+
+            titleEl.innerText = (memo.title || '').trim() || '（無題のメモ）';
+            catEl.innerText = memo.category || '未分類';
+            impEl.innerText = `重要度: ${memo.importance || '中'}`;
+            impEl.className = `text-xs font-bold px-2 py-0.5 rounded-full ${getImportanceBadge(memo.importance || '中')}`;
+            dateEl.innerText = memo.date || '';
+        }
+
+        function toggleMobileMetaFields(forceOpen = null) {
+            const section = document.getElementById('meta-edit-section');
+            const btn = document.getElementById('mobile-meta-toggle-btn');
+            const shouldOpen = forceOpen !== null ? forceOpen : section.classList.contains('hidden');
+            if (shouldOpen) {
+                section.classList.remove('hidden');
+                btn.innerText = '▲ 閉じる';
+            } else {
+                section.classList.add('hidden');
+                btn.innerText = '✏️ タイトル・タグ編集';
+            }
+        }
+
+        function selectMemo(id, preferEditMode = false) {
+            currentMemoId = id;
+            const memo = memos.find(m => m.id === id);
+            if (!memo) return;
+            
+            document.getElementById('no-memo-selected').classList.add('hidden');
+            document.getElementById('editor-container').classList.remove('hidden');
+
+            document.getElementById('memo-title').value = memo.title || '';
+            document.getElementById('memo-category').value = memo.category || '';
+            document.getElementById('memo-importance').value = memo.importance || '中';
+            document.getElementById('memo-date').value = memo.date || '';
+            document.getElementById('memo-content').value = memo.content || '';
+            
+            syncMobileViewHeader(memo);
+            updateCounters(memo.content || '');
+            updatePreviewContent();
+            renderMemoList();
+
+            if (window.innerWidth < 640) {
+                if (!preferEditMode) {
+                    setEditorMode('preview');
+                    toggleMobileMetaFields(false);
+                } else {
+                    setEditorMode('edit');
+                    toggleMobileMetaFields(true);
+                }
+                const sidebar = document.getElementById('sidebar');
+                if (!sidebar.classList.contains('-translate-x-full')) {
+                    toggleMobileSidebar();
+                }
+            }
+        }
+
+        function setEditorMode(mode) {
+            editorMode = mode;
+            const editBox = document.getElementById('edit-mode-box');
+            const previewBox = document.getElementById('preview-mode-box');
+            const editBtn = document.getElementById('tab-edit-btn');
+            const previewBtn = document.getElementById('tab-preview-btn');
+
+            if (mode === 'edit') {
+                editBox.classList.remove('hidden');
+                previewBox.classList.add('hidden');
+                editBtn.className = "px-3 py-1 rounded-md bg-white text-blue-600 shadow-xs transition";
+                previewBtn.className = "px-3 py-1 rounded-md text-slate-500 hover:text-slate-700 transition";
+            } else {
+                updatePreviewContent();
+                editBox.classList.add('hidden');
+                previewBox.classList.remove('hidden');
+                previewBtn.className = "px-3 py-1 rounded-md bg-white text-blue-600 shadow-xs transition";
+                editBtn.className = "px-3 py-1 rounded-md text-slate-500 hover:text-slate-700 transition";
+            }
+        }
+
+        function updatePreviewContent() {
+            const rawText = document.getElementById('memo-content').value;
+            const escaped = escapeHtml(rawText);
+            const linked = escaped.replace(/(https?:\/\/[^\s<>"']+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline hover:text-blue-800 font-medium">$1 ↗</a>');
+            document.getElementById('preview-mode-box').innerHTML = linked || '<span class="text-slate-400">（内容がありません）</span>';
+        }
+
+        function updateCounters(text) {
+            document.getElementById('char-count').innerText = `${text.length} 文字`;
+            const lines = text ? text.split('\n').length : 0;
+            document.getElementById('line-count').innerText = `${lines} 行`;
+        }
+
+        function createNewMemo() {
+            const defaultCat = categoryPresets[0] || '覚書き';
+            const newMemo = {
+                id: Date.now().toString(),
+                title: '',
+                category: defaultCat,
+                importance: '中',
+                date: getNowTimestamp(),
+                content: ''
+            };
+            memos.unshift(newMemo);
+            setEditorMode('edit');
+            selectMemo(newMemo.id, true);
+            document.getElementById('memo-title').focus();
+            triggerAutoSave();
+        }
+
+        function updateCurrentMemo() {
+            if (!currentMemoId) return;
+            const index = memos.findIndex(m => m.id === currentMemoId);
+            if (index === -1) return;
+            const memo = memos[index];
+
+            memo.title = document.getElementById('memo-title').value;
+            memo.category = document.getElementById('memo-category').value;
+            memo.importance = document.getElementById('memo-importance').value;
+            memo.content = document.getElementById('memo-content').value;
+            memo.date = getNowTimestamp();
+
+            document.getElementById('memo-date').value = memo.date;
+            syncMobileViewHeader(memo);
+
+            // 配列自体も最新が先頭になるよう移動
+            if (index > 0) {
+                memos.splice(index, 1);
+                memos.unshift(memo);
+            }
+
+            updateCounters(memo.content);
+            renderMemoList();
+            triggerAutoSave();
+        }
+
+        // 一覧からの削除（イベントバブリング防止）
+        function deleteMemoById(event, id) {
+            event.stopPropagation();
+            if (!confirm('このメモを削除してもよろしいですか？')) return;
+
+            memos = memos.filter(m => m.id !== id);
+            if (currentMemoId === id) {
+                currentMemoId = null;
+                document.getElementById('editor-container').classList.add('hidden');
+                document.getElementById('no-memo-selected').classList.remove('hidden');
+            }
+            renderMemoList();
+            triggerAutoSave();
+        }
+
+        // 編集画面からの削除
+        function deleteCurrentMemo() {
+            if (!currentMemoId) return;
+            if (!confirm('このメモを削除してもよろしいですか？')) return;
+
+            memos = memos.filter(m => m.id !== currentMemoId);
+            currentMemoId = null;
+            
+            document.getElementById('editor-container').classList.add('hidden');
+            document.getElementById('no-memo-selected').classList.remove('hidden');
+
+            renderMemoList();
+            triggerAutoSave();
+        }
+
+        function triggerAutoSave() {
+            saveToLocalStorage();
+            setFileStatus(false);
+            clearTimeout(autoSaveTimer);
+            autoSaveTimer = setTimeout(() => {
+                if (isApiSupported && fileHandle) {
+                    saveFileSilent();
+                }
+            }, 1000);
+        }
+
+        function setFileStatus(isSaved, fileName = "") {
+            const statusEl = document.getElementById('file-status');
+            const name = fileHandle ? fileHandle.name : fileName;
+            if (isSaved) {
+                statusEl.className = "hidden xs:inline-block text-xs px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full font-semibold";
+                statusEl.innerText = name ? `保存済み (${name})` : "保存済み";
+            } else {
+                statusEl.className = "hidden xs:inline-block text-xs px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full font-semibold";
+                statusEl.innerText = name ? `未保存 (${name})` : "未接続";
+            }
+        }
+
+        // --- ファイル操作（PC & 携帯ハイブリッド） ---
+        async function openFile() {
+            if (isApiSupported) {
+                try {
+                    const [handle] = await window.showOpenFilePicker({
+                        types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }]
+                    });
+                    await saveHandleToDB(handle);
+                    await loadFromHandle(handle);
+                    document.getElementById('reconnect-banner').classList.add('hidden');
+                    toggleSettingsModal();
+                } catch (err) {
+                    if (err.name !== 'AbortError') console.error(err);
+                }
+            } else {
+                // スマホ用：ファイル選択インプット起動
+                document.getElementById('fallback-file-input').click();
+            }
+        }
+
+        async function handleFallbackFileSelected(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const parsed = JSON.parse(text);
+                if (!Array.isArray(parsed)) throw new Error('形式が不正です');
+
+                memos = parsed;
+                memos.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+                fallbackFileName = file.name;
+                saveToLocalStorage();
+                document.getElementById('file-path-display').innerText = `読込ファイル: ${file.name}`;
+                
+                if (memos.length > 0) selectMemo(memos[0].id);
+                renderMemoList();
+                setFileStatus(true, file.name);
+                alert(`「${file.name}」を読み込みました。`);
+                toggleSettingsModal();
+            } catch (err) {
+                alert('JSONファイルの読み込みに失敗しました: ' + err.message);
+            }
+            event.target.value = '';
+        }
+
+        async function createNewJsonFile() {
+            if (!isApiSupported) return;
+            try {
+                fileHandle = await window.showSaveFilePicker({
+                    types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }],
+                    suggestedName: 'memos.json'
+                });
+                await saveHandleToDB(fileHandle);
+                document.getElementById('reconnect-banner').classList.add('hidden');
+                document.getElementById('file-path-display').innerText = `接続中: ${fileHandle.name}`;
+                document.getElementById('unlink-btn').classList.remove('hidden');
+                await saveFileSilent();
+                alert(`「${fileHandle.name}」を作成し紐付けました。`);
+                toggleSettingsModal();
+            } catch (err) {
+                if (err.name !== 'AbortError') console.error(err);
+            }
+        }
+
+        async function saveFile() {
+            if (isApiSupported && fileHandle) {
+                await saveFileSilent();
+            } else if (isApiSupported && !fileHandle) {
+                await createNewJsonFile();
+            } else {
+                // スマホ等：JSONダウンロード保存
+                saveToLocalStorage();
+                const jsonStr = JSON.stringify(memos, null, 2);
+                const blob = new Blob([jsonStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fallbackFileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                setFileStatus(true, fallbackFileName);
+            }
+        }
+
+        async function saveFileSilent() {
+            if (!fileHandle) return;
+            try {
+                const writable = await fileHandle.createWritable();
+                await writable.write(JSON.stringify(memos, null, 2));
+                await writable.close();
+                saveToLocalStorage();
+                setFileStatus(true, fileHandle.name);
+            } catch (err) {
+                console.error("保存エラー:", err);
+            }
+        }
+
+        function toggleSettingsModal() {
+            const modal = document.getElementById('settings-modal');
+            modal.classList.toggle('hidden');
+        }
+
+        function escapeHtml(str) {
+            return String(str).replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+    </script>
+</body>
+</html>
