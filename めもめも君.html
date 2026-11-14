@@ -25,12 +25,22 @@
         </div>
     </header>
 
+    <!-- リロード時の前回ファイル復元バナー -->
+    <div id="reconnect-banner" class="bg-indigo-600 text-white px-4 py-2.5 text-xs sm:text-sm flex items-center justify-between shadow-md z-10 hidden">
+        <div class="flex items-center space-x-2">
+            <span>🔄 前回使用していたファイル（<strong id="reconnect-filename">memos.json</strong>）が見つかりました。</span>
+        </div>
+        <div class="flex items-center space-x-2 shrink-0 ml-2">
+            <button onclick="reconnectPreviousFile()" class="px-3 py-1 bg-white text-indigo-700 font-bold rounded-lg hover:bg-indigo-50 transition shadow-sm text-xs">読み込む</button>
+            <button onclick="dismissReconnectBanner()" class="text-indigo-200 hover:text-white px-1.5 text-base">&times;</button>
+        </div>
+    </div>
+
     <!-- メインコンテナ -->
     <div class="flex-1 flex relative overflow-hidden">
         
         <!-- 左側：サイドバー（一覧・フィルター） -->
         <aside id="sidebar" class="absolute sm:relative inset-y-0 left-0 w-80 bg-white border-r border-slate-200 flex flex-col shrink-0 z-10 transform -translate-x-full sm:translate-x-0 transition-transform duration-200 shadow-xl sm:shadow-none">
-            <!-- モバイル用閉じるボタン -->
             <div class="sm:hidden px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                 <span class="font-bold text-sm text-slate-700">メモ一覧</span>
                 <button onclick="toggleMobileSidebar()" class="text-slate-400 hover:text-slate-600 font-bold text-lg px-2">&times;</button>
@@ -55,7 +65,7 @@
             <div id="memo-list" class="flex-1 overflow-y-auto divide-y divide-slate-100"></div>
         </aside>
 
-        <!-- 背景オーバーレイ（モバイルでサイドバーが開いているとき用） -->
+        <!-- 背景オーバーレイ（モバイル用） -->
         <div id="sidebar-overlay" onclick="toggleMobileSidebar()" class="fixed inset-0 bg-slate-900/30 z-0 sm:hidden hidden"></div>
 
         <!-- 右側：エディタ -->
@@ -133,6 +143,7 @@
                     <div class="flex flex-wrap gap-2">
                         <button onclick="createNewJsonFile()" class="px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">＋ 新規JSON作成して紐付け</button>
                         <button onclick="openFile()" class="px-3 py-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition">📂 既存JSONを開く</button>
+                        <button onclick="clearSavedFileHandle()" class="px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg transition">紐付け解除</button>
                     </div>
                     <p id="fs-api-warning" class="text-[11px] text-amber-700 bg-amber-50 p-2 rounded mt-2 hidden"></p>
                 </div>
@@ -152,9 +163,9 @@
                 <div class="border-t border-slate-100 pt-4">
                     <h4 class="font-semibold text-slate-800 mb-2">💡 使い方 & 注意事項</h4>
                     <ul class="list-disc list-inside space-y-1.5 text-xs text-slate-600">
+                        <li><strong>前回ファイルの記憶:</strong> 一度JSONファイルを作成・選択すると、ブラウザに場所が記憶されます。リロード時は上部の「読み込む」ボタンから即座に復元できます。</li>
+                        <li><strong>自動保存:</strong> ファイル紐付け後、編集から1.5秒後に自動でJSONファイルへ上書き保存されます。</li>
                         <li><strong>モバイル対応:</strong> スマホ画面では左上のメニューボタン（≡）からメモ一覧を開閉できます。</li>
-                        <li><strong>動作環境:</strong> File System Access APIを利用するため、GitHub Pages（<code>https://</code>）やローカルサーバー経由でご利用ください。</li>
-                        <li><strong>自動保存:</strong> ファイル紐付け後、変更から1.5秒後に自動で上書き保存されます。</li>
                     </ul>
                 </div>
 
@@ -171,20 +182,129 @@
         let categoryPresets = JSON.parse(localStorage.getItem(PRESET_STORAGE_KEY)) || ['覚書き', '旅行', 'レシピ'];
 
         let memos = [
-            { id: "1", category: "覚書き", importance: "中", date: new Date().toISOString().split('T')[0], content: "ようこそ Local Memo へ！\n\nスマホやPCのどちらからでも快適にメモを管理できます。右上の歯車（⚙️）からJSONファイルの連携や分類プリセットの設定が可能です。" }
+            { id: "1", category: "覚書き", importance: "中", date: new Date().toISOString().split('T')[0], content: "ようこそ Local Memo へ！\n\n一度JSONファイルを設定すると、次回リロード時にも記憶されます。" }
         ];
         let currentMemoId = null;
         let fileHandle = null;
+        let savedHandleCandidate = null;
         let autoSaveTimer = null;
 
-        window.onload = () => {
+        // IndexedDB ヘルパー（fileHandleの永続化用）
+        const DB_NAME = 'LocalMemoDB';
+        const STORE_NAME = 'fileHandles';
+
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, 1);
+                request.onupgradeneeded = () => request.result.createObjectStore(STORE_NAME);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function saveHandleToDB(handle) {
+            const db = await openDB();
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            tx.objectStore(STORE_NAME).put(handle, 'lastUsedFile');
+            return new Promise(resolve => tx.oncomplete = resolve);
+        }
+
+        async function getHandleFromDB() {
+            const db = await openDB();
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const req = tx.objectStore(STORE_NAME).get('lastUsedFile');
+            return new Promise(resolve => req.onsuccess = () => resolve(req.result));
+        }
+
+        async function clearHandleFromDB() {
+            const db = await openDB();
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            tx.objectStore(STORE_NAME).delete('lastUsedFile');
+            return new Promise(resolve => tx.oncomplete = resolve);
+        }
+
+        // 起動時処理
+        window.onload = async () => {
             checkFileSystemApiSupport();
             renderPresetList();
             renderMemoList();
             if (memos.length > 0) {
                 selectMemo(memos[0].id);
             }
+
+            // 前回保存したファイルハンドルがIndexedDBにあるか確認
+            if ('showOpenFilePicker' in window) {
+                try {
+                    const storedHandle = await getHandleFromDB();
+                    if (storedHandle) {
+                        savedHandleCandidate = storedHandle;
+                        // 既に権限が許可されているかチェック
+                        const perm = await storedHandle.queryPermission({ mode: 'readwrite' });
+                        if (perm === 'granted') {
+                            await loadFromHandle(storedHandle);
+                        } else {
+                            // リロード直後はユーザー操作（クリック）が必要なためバナーを表示
+                            document.getElementById('reconnect-filename').innerText = storedHandle.name;
+                            document.getElementById('reconnect-banner').classList.remove('hidden');
+                            document.getElementById('file-path-display').innerText = `記憶済み（未接続）: ${storedHandle.name}`;
+                        }
+                    }
+                } catch (e) {
+                    console.error('前回のファイル情報の取得に失敗:', e);
+                }
+            }
         };
+
+        // バナーの「読み込む」クリック時
+        async function reconnectPreviousFile() {
+            if (!savedHandleCandidate) return;
+            try {
+                const perm = await savedHandleCandidate.requestPermission({ mode: 'readwrite' });
+                if (perm === 'granted') {
+                    await loadFromHandle(savedHandleCandidate);
+                    document.getElementById('reconnect-banner').classList.add('hidden');
+                }
+            } catch (err) {
+                console.error('再接続エラー:', err);
+                alert('ファイルの読み込み許可が得られませんでした。「開く」ボタンから再度選択してください。');
+            }
+        }
+
+        function dismissReconnectBanner() {
+            document.getElementById('reconnect-banner').classList.add('hidden');
+        }
+
+        // ハンドルからJSONを読み込む共通処理
+        async function loadFromHandle(handle) {
+            const file = await handle.getFile();
+            const text = await file.text();
+            const parsed = JSON.parse(text);
+            if (!Array.isArray(parsed)) throw new Error('JSON形式が正しくありません');
+
+            fileHandle = handle;
+            memos = parsed;
+            document.getElementById('file-path-display').innerText = `紐付け済み: ${file.name}`;
+            
+            if (memos.length > 0) {
+                selectMemo(memos[0].id);
+            } else {
+                currentMemoId = null;
+                document.getElementById('editor-container').classList.add('hidden');
+                document.getElementById('no-memo-selected').classList.remove('hidden');
+            }
+            renderMemoList();
+            setFileStatus(true);
+        }
+
+        async function clearSavedFileHandle() {
+            await clearHandleFromDB();
+            fileHandle = null;
+            savedHandleCandidate = null;
+            document.getElementById('reconnect-banner').classList.add('hidden');
+            document.getElementById('file-path-display').innerText = 'ファイル未選択（ブラウザのメモリ上で動作中）';
+            setFileStatus(false);
+            alert('ファイルの紐付けを解除しました。');
+        }
 
         function checkFileSystemApiSupport() {
             const warningEl = document.getElementById('fs-api-warning');
@@ -197,7 +317,6 @@
             }
         }
 
-        // モバイル用サイドバー開閉
         function toggleMobileSidebar() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebar-overlay');
@@ -327,7 +446,6 @@
 
             renderMemoList();
 
-            // スマホ画面でメモを選択したときはサイドバーを自動で閉じる
             if (window.innerWidth < 640) {
                 const sidebar = document.getElementById('sidebar');
                 if (!sidebar.classList.contains('-translate-x-full')) {
@@ -409,9 +527,11 @@
                     types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }],
                     suggestedName: 'memos.json'
                 });
+                await saveHandleToDB(fileHandle);
+                document.getElementById('reconnect-banner').classList.add('hidden');
                 document.getElementById('file-path-display').innerText = `紐付け済み: ${fileHandle.name}`;
                 await saveFileSilent();
-                alert(`「${fileHandle.name}」を作成し紐付けました。`);
+                alert(`「${fileHandle.name}」を作成し紐付けました。次回起動時も記憶されます。`);
             } catch (err) {
                 if (err.name !== 'AbortError') console.error(err);
             }
@@ -423,17 +543,12 @@
                 return;
             }
             try {
-                [fileHandle] = await window.showOpenFilePicker({
+                const [handle] = await window.showOpenFilePicker({
                     types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }]
                 });
-                const file = await fileHandle.getFile();
-                const text = await file.text();
-                memos = JSON.parse(text);
-                
-                document.getElementById('file-path-display').innerText = `紐付け済み: ${file.name}`;
-                if (memos.length > 0) selectMemo(memos[0].id);
-                renderMemoList();
-                setFileStatus(true);
+                await saveHandleToDB(handle);
+                await loadFromHandle(handle);
+                document.getElementById('reconnect-banner').classList.add('hidden');
             } catch (err) {
                 if (err.name !== 'AbortError') console.error(err);
             }
